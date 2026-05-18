@@ -2066,8 +2066,8 @@ export default function ReservationsView({
                             className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-primary/50 dark:hover:border-primary/50 transition-all group"
                         >
                             <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{r.model}</h3>
+                                <div className="flex-1 min-w-0 pr-2">
+                                    <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight break-words">{formatVehicleLabel(r, false)}</h3>
                                     {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && (
                                         <p className="text-primary font-medium text-xs mt-1">
                                             Usuario:
@@ -2080,7 +2080,7 @@ export default function ReservationsView({
                                         </p>
                                     )}
                                 </div>
-                                <div className="flex flex-col items-end gap-1">
+                                <div className="flex flex-col items-end gap-1 shrink-0">
                                     <span className={"chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider " + (STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700')}>
                                         {r.status}
                                     </span>
@@ -2238,9 +2238,9 @@ export default function ReservationsView({
                                             <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
                                                 <span
                                                     className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
-                                                    title={r.model}
+                                                    title={formatVehicleLabel(r, false)}
                                                 >
-                                                    {r.model}
+                                                    {formatVehicleLabel(r, false)}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-4 text-center">

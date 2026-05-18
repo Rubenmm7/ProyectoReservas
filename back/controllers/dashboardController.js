@@ -140,7 +140,7 @@ const rejectReservationsForVehicle = async (connection, vehicleId, reason, actor
 
     const [updatedResRows] = await connection.query(`
       SELECT 
-        r.id, u.username, v.license_plate, v.model, v.status AS vehicle_status,
+        r.id, u.username, v.brand, v.license_plate, v.model, v.status AS vehicle_status,
         v.centre_id, c.nombre AS centre_name, r.start_time, r.end_time, r.status,
         r.user_id, r.vehicle_id, r.motivo_rechazo
       FROM reservations r
@@ -1186,6 +1186,7 @@ exports.updateReservation = async (req, res) => {
       SELECT 
         r.id,
         u.username,
+        v.brand,
         v.license_plate,
         v.model,
         v.status AS vehicle_status,
