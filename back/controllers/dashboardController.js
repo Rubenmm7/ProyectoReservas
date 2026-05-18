@@ -39,8 +39,27 @@ const validateVehicleStatus = (value) => {
   return { ok: true, status };
 };
 
+const normalizeNullableText = (value) => {
+  const text = String(value ?? '').trim();
+  return text.length > 0 ? text : null;
+};
 
+const normalizeOptionalInteger = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
 
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const formatVehicleLabel = (vehicle = {}) => {
+  const brand = String(vehicle.brand ?? '').trim();
+  const model = String(vehicle.model ?? '').trim();
+  const plate = String(vehicle.license_plate ?? '').trim();
+  const name = [brand, model].filter(Boolean).join(' / ') || model || brand || 'Vehículo';
+  return plate ? `${name} (${plate})` : name;
+};
 
 const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
   const [vehicleRows] = await connection.query('SELECT status FROM vehicles WHERE id = ?', [vehicleId]);
@@ -414,7 +433,7 @@ exports.getCentreDetails = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [vehicles] = await db.query('SELECT id, license_plate, model, status FROM vehicles WHERE centre_id = ?', [id]);
+    const [vehicles] = await db.query('SELECT id, brand, license_plate, model, status FROM vehicles WHERE centre_id = ?', [id]);
     const [users] = await db.query(`
             SELECT u.id, u.username, u.role,
                    GROUP_CONCAT(DISTINCT uc2.centre_id ORDER BY uc2.centre_id SEPARATOR ',') as centre_ids,
@@ -620,6 +639,7 @@ exports.getRecentReservations = async (req, res) => {
       SELECT 
         r.id,
         u.username,
+        v.brand,
         v.license_plate,
         v.model,
         v.status AS vehicle_status,
@@ -784,9 +804,9 @@ exports.createReservation = async (req, res) => {
     await connection.commit();
 
     // Obtener info del vehículo para el audit y la respuesta
-    const [vehicleInfoRows] = await connection.query('SELECT model, license_plate FROM vehicles WHERE id = ?', [vehicle_id]);
+    const [vehicleInfoRows] = await connection.query('SELECT brand, model, license_plate FROM vehicles WHERE id = ?', [vehicle_id]);
     const vehiculoInfo = vehicleInfoRows.length > 0
-      ? `${vehicleInfoRows[0].model} (${vehicleInfoRows[0].license_plate})`
+      ? formatVehicleLabel(vehicleInfoRows[0])
       : `ID: ${vehicle_id}`;
 
     // Registrar auditoría de creación de reserva
@@ -808,6 +828,7 @@ exports.createReservation = async (req, res) => {
       SELECT 
         r.id,
         u.username,
+        v.brand,
         v.license_plate,
         v.model,
         v.status AS vehicle_status,
@@ -1061,7 +1082,7 @@ exports.updateReservation = async (req, res) => {
           );
 
           // Verificar si hay que notificar a los admins
-          const [vData] = await connection.query('SELECT model, license_plate, km_taller_acumulados, centre_id FROM vehicles WHERE id = ?', [finalVehicleId]);
+          const [vData] = await connection.query('SELECT brand, model, license_plate, km_taller_acumulados, centre_id FROM vehicles WHERE id = ?', [finalVehicleId]);
           if (vData.length > 0 && vData[0].km_taller_acumulados >= 15000) {
             const [cData] = await connection.query('SELECT nombre FROM centres WHERE id = ?', [vData[0].centre_id]);
             notifyStaffAboutWorkshop({
@@ -1108,13 +1129,13 @@ exports.updateReservation = async (req, res) => {
     }
 
     const oldVehicleId = original[0].vehicle_id;
-    const [oldVehicleRows] = await connection.query('SELECT model, license_plate FROM vehicles WHERE id = ?', [oldVehicleId]);
-    const [newVehicleRows] = await connection.query('SELECT model, license_plate FROM vehicles WHERE id = ?', [finalVehicleId]);
+    const [oldVehicleRows] = await connection.query('SELECT brand, model, license_plate FROM vehicles WHERE id = ?', [oldVehicleId]);
+    const [newVehicleRows] = await connection.query('SELECT brand, model, license_plate FROM vehicles WHERE id = ?', [finalVehicleId]);
     const oldVehiculoInfo = oldVehicleRows.length > 0
-      ? `${oldVehicleRows[0].model} (${oldVehicleRows[0].license_plate})`
+      ? formatVehicleLabel(oldVehicleRows[0])
       : `ID: ${oldVehicleId}`;
     const newVehiculoInfo = newVehicleRows.length > 0
-      ? `${newVehicleRows[0].model} (${newVehicleRows[0].license_plate})`
+      ? formatVehicleLabel(newVehicleRows[0])
       : `ID: ${finalVehicleId}`;
 
     const previousReservation = {
@@ -1235,6 +1256,7 @@ exports.deleteReservation = async (req, res) => {
         r.end_time,
         v.centre_id,
         u.username,
+        v.brand,
         v.license_plate,
         v.model,
         c.nombre AS centre_name
@@ -1279,7 +1301,7 @@ exports.deleteReservation = async (req, res) => {
       await auditLogger.logAction(req.user.id, 'DELETE', 'reservations', id, req.user.role, {
         user_id: original[0].user_id,
         vehicle_id: vehicleId,
-        vehiculo: `${original[0].model} (${original[0].license_plate})`,
+        vehiculo: formatVehicleLabel(original[0]),
         start_time: original[0].start_time,
         end_time: original[0].end_time,
         status: original[0].status,
@@ -1329,10 +1351,37 @@ exports.getVehicles = async (req, res) => {
     const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 50, 100));
     const offset = (page - 1) * limit;
     const search = req.query.search ? `%${req.query.search}%` : null;
-    const VEHICLE_SORT_MAP = { license_plate: 'v.license_plate', model: 'v.model', status: 'v.status', kilometers: 'v.kilometers', centre_name: 'c.nombre', has_expired_documents: 'has_expired_documents', is_workshop_report_outdated: 'is_workshop_report_outdated' };
+    const VEHICLE_SORT_MAP = {
+      license_plate: 'v.license_plate',
+      brand: 'v.brand',
+      model: 'v.model',
+      vehicle_type: 'v.vehicle_type',
+      seats: 'v.seats',
+      trunk_capacity_l: 'v.trunk_capacity_l',
+      energy_type: 'v.energy_type',
+      fuel_level: 'v.fuel_level',
+      location: 'v.location',
+      cost_centre: 'v.cost_centre',
+      status: 'v.status',
+      kilometers: 'v.kilometers',
+      centre_name: 'c.nombre',
+      has_expired_documents: 'has_expired_documents',
+      is_workshop_report_outdated: 'is_workshop_report_outdated',
+    };
     const vSortCol = VEHICLE_SORT_MAP[req.query.sortBy] || 'v.license_plate';
     const vSortDir = req.query.sortDir === 'desc' ? 'DESC' : 'ASC';
     const optionsFilter = typeof req.query.optionsFilter === 'string' ? req.query.optionsFilter : 'all';
+    const brand = normalizeNullableText(req.query.brand);
+    const vehicleType = normalizeNullableText(req.query.vehicleType);
+    const energyType = normalizeNullableText(req.query.energyType);
+    const fuelLevel = normalizeNullableText(req.query.fuelLevel);
+    const location = normalizeNullableText(req.query.location);
+    const costCentre = normalizeNullableText(req.query.costCentre);
+    const extras = normalizeNullableText(req.query.extras);
+    const seatsMin = normalizeOptionalInteger(req.query.seatsMin);
+    const seatsMax = normalizeOptionalInteger(req.query.seatsMax);
+    const trunkMin = normalizeOptionalInteger(req.query.trunkMin);
+    const trunkMax = normalizeOptionalInteger(req.query.trunkMax);
 
     let query = `
       SELECT v.*, c.nombre as centre_name,
@@ -1352,8 +1401,63 @@ exports.getVehicles = async (req, res) => {
     }
 
     if (search) {
-      whereClauses.push('(v.license_plate LIKE ? OR v.model LIKE ? OR c.nombre LIKE ?)');
-      params.push(search, search, search);
+      whereClauses.push('(v.license_plate LIKE ? OR v.brand LIKE ? OR v.model LIKE ? OR v.vehicle_type LIKE ? OR v.location LIKE ? OR v.cost_centre LIKE ? OR v.extras LIKE ? OR c.nombre LIKE ?)');
+      params.push(search, search, search, search, search, search, search, search);
+    }
+
+    if (brand) {
+      whereClauses.push('v.brand = ?');
+      params.push(brand);
+    }
+
+    if (vehicleType) {
+      whereClauses.push('v.vehicle_type = ?');
+      params.push(vehicleType);
+    }
+
+    if (energyType) {
+      whereClauses.push('v.energy_type = ?');
+      params.push(energyType);
+    }
+
+    if (fuelLevel) {
+      whereClauses.push('v.fuel_level = ?');
+      params.push(fuelLevel);
+    }
+
+    if (location) {
+      whereClauses.push('v.location LIKE ?');
+      params.push(`%${location}%`);
+    }
+
+    if (costCentre) {
+      whereClauses.push('v.cost_centre LIKE ?');
+      params.push(`%${costCentre}%`);
+    }
+
+    if (extras) {
+      whereClauses.push('v.extras LIKE ?');
+      params.push(`%${extras}%`);
+    }
+
+    if (seatsMin !== undefined) {
+      whereClauses.push('v.seats >= ?');
+      params.push(seatsMin);
+    }
+
+    if (seatsMax !== undefined) {
+      whereClauses.push('v.seats <= ?');
+      params.push(seatsMax);
+    }
+
+    if (trunkMin !== undefined) {
+      whereClauses.push('v.trunk_capacity_l >= ?');
+      params.push(trunkMin);
+    }
+
+    if (trunkMax !== undefined) {
+      whereClauses.push('v.trunk_capacity_l <= ?');
+      params.push(trunkMax);
     }
 
     if (req.query.filterExpired === '1' || req.query.filterExpired === 'true') {
@@ -1413,35 +1517,74 @@ exports.getVehicles = async (req, res) => {
 // Funciones para gestionar vehículos (CRUD)
 exports.createVehicle = async (req, res) => {
   try {
-    let { license_plate, model, status, kilometers, centre_id } = req.body;
-    if (!license_plate || !model) {
-      return res.status(400).json({ error: 'La matrícula y el modelo son obligatorios' });
+    let {
+      license_plate,
+      brand,
+      model,
+      vehicle_type,
+      seats,
+      trunk_capacity_l,
+      energy_type,
+      fuel_level,
+      location,
+      extras,
+      cost_centre,
+      status,
+      kilometers,
+      centre_id,
+    } = req.body;
+
+    const finalBrand = normalizeNullableText(brand);
+    const finalModel = String(model ?? '').trim();
+    const finalVehicleType = normalizeNullableText(vehicle_type) || 'turismo';
+    const finalSeats = normalizeOptionalInteger(seats);
+    const finalTrunkCapacity = normalizeOptionalInteger(trunk_capacity_l);
+    const finalEnergyType = normalizeNullableText(energy_type) || 'combustion';
+    const finalFuelLevel = normalizeNullableText(fuel_level) || 'medio';
+    const finalLocation = normalizeNullableText(location);
+    const finalExtras = normalizeNullableText(extras);
+    const finalCostCentre = normalizeNullableText(cost_centre);
+
+    if (!license_plate || !finalBrand || !finalModel) {
+      return res.status(400).json({ error: 'La matrícula, la marca y el modelo son obligatorios' });
     }
 
-    // Validación de longitud del modelo
-    if (model.length > 60) {
+    if (finalModel.length > 60) {
       return res.status(400).json({ error: 'El modelo no puede exceder 60 caracteres' });
     }
 
-    // Validación de kilómetros
+    if (finalBrand.length > 80) {
+      return res.status(400).json({ error: 'La marca no puede exceder 80 caracteres' });
+    }
+
+    if (finalVehicleType.length > 50) {
+      return res.status(400).json({ error: 'El tipo de vehículo no puede exceder 50 caracteres' });
+    }
+
+    if (finalLocation && finalLocation.length > 120) {
+      return res.status(400).json({ error: 'La ubicación no puede exceder 120 caracteres' });
+    }
+
+    if (finalCostCentre && finalCostCentre.length > 80) {
+      return res.status(400).json({ error: 'El centro de coste no puede exceder 80 caracteres' });
+    }
+
     const kmValue = kilometers !== undefined ? parseInt(kilometers) : 0;
     if (isNaN(kmValue) || kmValue < 0 || kmValue > 15000000) {
+      return res.status(400).json({ error: 'Los kilómetros deben estar entre 0 y 15.000.000' });
     }
 
     if (req.user.role !== 'admin') {
       centre_id = req.centreIds && req.centreIds.length > 0 ? req.centreIds[0] : null;
     }
 
-    // Normalización: Eliminar espacios y guiones
     license_plate = normalizePlate(license_plate);
 
-    // Validación de formato de matrícula española (desde años 90)
     const validation = validateSpanishPlate(license_plate);
     if (!validation.isValid) {
       return res.status(400).json({ error: validation.error });
     }
 
-    // Validación de unicidad
     const [existing] = await db.query('SELECT id FROM vehicles WHERE license_plate = ?', [license_plate]);
     if (existing.length > 0) {
       return res.status(400).json({ error: 'Esta matrícula ya está registrada en el sistema' });
@@ -1452,17 +1595,52 @@ exports.createVehicle = async (req, res) => {
       return res.status(400).json({ error: validatedStatus.error });
     }
 
+    if (!['combustion', 'hibrido', 'electrico'].includes(finalEnergyType)) {
+      return res.status(400).json({ error: 'Tipo de energía no válido' });
+    }
+
+    if (!['vacio', 'medio-vacio', 'medio', 'medio-lleno', 'lleno'].includes(finalFuelLevel)) {
+      return res.status(400).json({ error: 'Nivel de combustible no válido' });
+    }
+
     const [result] = await db.query(
-      'INSERT INTO vehicles (license_plate, model, status, kilometers, centre_id) VALUES (?, ?, ?, ?, ?)',
-      [license_plate, model, validatedStatus.status, kmValue, centre_id || null]
+      `INSERT INTO vehicles (
+        license_plate, brand, model, vehicle_type, seats, trunk_capacity_l,
+        energy_type, fuel_level, location, extras, cost_centre,
+        status, kilometers, centre_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        license_plate,
+        finalBrand,
+        finalModel,
+        finalVehicleType,
+        finalSeats ?? 5,
+        finalTrunkCapacity ?? null,
+        finalEnergyType,
+        finalFuelLevel,
+        finalLocation,
+        finalExtras,
+        finalCostCentre,
+        validatedStatus.status,
+        kmValue,
+        centre_id || null
+      ]
     );
 
-    // Registrar auditoría de creación de vehículo
     await auditLogger.logAction(req.user.id, 'CREATE', 'vehicles', result.insertId, req.user.role, {
-      license_plate: license_plate,
-      model: model,
+      license_plate,
+      brand: finalBrand,
+      model: finalModel,
+      vehicle_type: finalVehicleType,
+      seats: finalSeats ?? 5,
+      trunk_capacity_l: finalTrunkCapacity ?? null,
+      energy_type: finalEnergyType,
+      fuel_level: finalFuelLevel,
+      location: finalLocation,
+      extras: finalExtras,
+      cost_centre: finalCostCentre,
       status: validatedStatus.status,
-      kilometers: kilometers || 0
+      kilometers: kmValue
     });
 
     res.status(201).json({ id: result.insertId, message: 'Vehículo creado exitosamente' });
@@ -1477,11 +1655,40 @@ exports.updateVehicle = async (req, res) => {
   try {
     await connection.beginTransaction();
     const { id } = req.params;
-    let { license_plate, model, status, kilometers, centre_id } = req.body;
+    let {
+      license_plate,
+      brand,
+      model,
+      vehicle_type,
+      seats,
+      trunk_capacity_l,
+      energy_type,
+      fuel_level,
+      location,
+      extras,
+      cost_centre,
+      status,
+      kilometers,
+      centre_id,
+    } = req.body;
     const isCentreManagementScope = req.user?.role === 'supervisor' && req.query?.scope === 'centres';
 
     if (isCentreManagementScope) {
-      if (license_plate !== undefined || model !== undefined || status !== undefined || kilometers !== undefined) {
+      if (
+        license_plate !== undefined ||
+        brand !== undefined ||
+        model !== undefined ||
+        vehicle_type !== undefined ||
+        seats !== undefined ||
+        trunk_capacity_l !== undefined ||
+        energy_type !== undefined ||
+        fuel_level !== undefined ||
+        location !== undefined ||
+        extras !== undefined ||
+        cost_centre !== undefined ||
+        status !== undefined ||
+        kilometers !== undefined
+      ) {
         await connection.rollback();
         return res.status(403).json({ error: 'En gestión de centros solo se puede cambiar el centro del vehículo' });
       }
@@ -1496,8 +1703,17 @@ exports.updateVehicle = async (req, res) => {
     }
 
     const current = existing[0];
+    const finalBrand = brand !== undefined ? normalizeNullableText(brand) : normalizeNullableText(current.brand);
+    const finalModel = model !== undefined ? String(model ?? '').trim() : String(current.model ?? '').trim();
+    const finalVehicleType = vehicle_type !== undefined ? normalizeNullableText(vehicle_type) : normalizeNullableText(current.vehicle_type) || 'turismo';
+    const finalSeatsRaw = seats !== undefined ? normalizeOptionalInteger(seats) : normalizeOptionalInteger(current.seats);
+    const finalTrunkCapacityRaw = trunk_capacity_l !== undefined ? normalizeOptionalInteger(trunk_capacity_l) : normalizeOptionalInteger(current.trunk_capacity_l);
+    const finalEnergyType = energy_type !== undefined ? normalizeNullableText(energy_type) : normalizeNullableText(current.energy_type) || 'combustion';
+    const finalFuelLevel = fuel_level !== undefined ? normalizeNullableText(fuel_level) : normalizeNullableText(current.fuel_level) || 'medio';
+    const finalLocation = location !== undefined ? normalizeNullableText(location) : normalizeNullableText(current.location);
+    const finalExtras = extras !== undefined ? normalizeNullableText(extras) : normalizeNullableText(current.extras);
+    const finalCostCentre = cost_centre !== undefined ? normalizeNullableText(cost_centre) : normalizeNullableText(current.cost_centre);
     const finalLicensePlate = license_plate ? normalizePlate(license_plate) : current.license_plate;
-    const finalModel = model || current.model;
     const finalStatus = status !== undefined ? validateVehicleStatus(status) : { ok: true, status: normalizeVehicleStatusInput(current.status) };
     if (!finalStatus.ok) {
       await connection.rollback();
@@ -1507,14 +1723,49 @@ exports.updateVehicle = async (req, res) => {
     const finalKilometers = parseInt(finalKilometersRaw);
     const finalCentreId = centre_id !== undefined ? centre_id : current.centre_id;
 
+    if (!finalBrand || !finalModel) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'La marca y el modelo son obligatorios' });
+    }
+
+    if (finalBrand.length > 80) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'La marca no puede exceder 80 caracteres' });
+    }
+
     if (finalModel.length > 60) {
       await connection.rollback();
       return res.status(400).json({ error: 'El modelo no puede exceder 60 caracteres' });
     }
 
+    if (finalVehicleType && finalVehicleType.length > 50) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'El tipo de vehículo no puede exceder 50 caracteres' });
+    }
+
+    if (finalLocation && finalLocation.length > 120) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'La ubicación no puede exceder 120 caracteres' });
+    }
+
+    if (finalCostCentre && finalCostCentre.length > 80) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'El centro de coste no puede exceder 80 caracteres' });
+    }
+
     if (isNaN(finalKilometers) || finalKilometers < 0 || finalKilometers > 15000000) {
       await connection.rollback();
       return res.status(400).json({ error: 'Los kilómetros deben estar entre 0 y 15.000.000' });
+    }
+
+    if (!['combustion', 'hibrido', 'electrico'].includes(finalEnergyType)) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'Tipo de energía no válido' });
+    }
+
+    if (!['vacio', 'medio-vacio', 'medio', 'medio-lleno', 'lleno'].includes(finalFuelLevel)) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'Nivel de combustible no válido' });
     }
 
     if (license_plate) {
@@ -1532,11 +1783,41 @@ exports.updateVehicle = async (req, res) => {
     }
 
     await connection.query(
-      'UPDATE vehicles SET license_plate = ?, model = ?, status = ?, kilometers = ?, centre_id = ? WHERE id = ?',
-      [finalLicensePlate, finalModel, finalStatus.status, finalKilometers, finalCentreId, id]
+      `UPDATE vehicles SET
+        license_plate = ?,
+        brand = ?,
+        model = ?,
+        vehicle_type = ?,
+        seats = ?,
+        trunk_capacity_l = ?,
+        energy_type = ?,
+        fuel_level = ?,
+        location = ?,
+        extras = ?,
+        cost_centre = ?,
+        status = ?,
+        kilometers = ?,
+        centre_id = ?
+      WHERE id = ?`,
+      [
+        finalLicensePlate,
+        finalBrand,
+        finalModel,
+        finalVehicleType,
+        finalSeatsRaw ?? 5,
+        finalTrunkCapacityRaw ?? null,
+        finalEnergyType,
+        finalFuelLevel,
+        finalLocation,
+        finalExtras,
+        finalCostCentre,
+        finalStatus.status,
+        finalKilometers,
+        finalCentreId,
+        id
+      ]
     );
 
-    // RECHAZAR RESERVAS SI PASA A TALLER O NO DISPONIBLE
     if (finalStatus.status === 'en-taller' || finalStatus.status === 'no-disponible') {
       const reason = finalStatus.status === 'en-taller' ? 'Vehículo enviado a taller' : 'Vehículo no disponible por incidencia/mantenimiento';
       await rejectReservationsForVehicle(connection, id, reason, req.user.id, req.user.role);
@@ -1544,21 +1825,48 @@ exports.updateVehicle = async (req, res) => {
 
     const vehiclePrevious = {
       license_plate: current.license_plate,
+      brand: current.brand,
       model: current.model,
+      vehicle_type: current.vehicle_type,
+      seats: current.seats,
+      trunk_capacity_l: current.trunk_capacity_l,
+      energy_type: current.energy_type,
+      fuel_level: current.fuel_level,
+      location: current.location,
+      extras: current.extras,
+      cost_centre: current.cost_centre,
       status: current.status,
       kilometers: current.kilometers
     };
 
     const vehicleCurrent = {
       license_plate: finalLicensePlate,
+      brand: finalBrand,
       model: finalModel,
+      vehicle_type: finalVehicleType,
+      seats: finalSeatsRaw ?? 5,
+      trunk_capacity_l: finalTrunkCapacityRaw ?? null,
+      energy_type: finalEnergyType,
+      fuel_level: finalFuelLevel,
+      location: finalLocation,
+      extras: finalExtras,
+      cost_centre: finalCostCentre,
       status: finalStatus.status,
       kilometers: finalKilometers
     };
 
     const vehicleChanges = {
       license_plate: { from: vehiclePrevious.license_plate, to: vehicleCurrent.license_plate },
+      brand: { from: vehiclePrevious.brand, to: vehicleCurrent.brand },
       model: { from: vehiclePrevious.model, to: vehicleCurrent.model },
+      vehicle_type: { from: vehiclePrevious.vehicle_type, to: vehicleCurrent.vehicle_type },
+      seats: { from: vehiclePrevious.seats, to: vehicleCurrent.seats },
+      trunk_capacity_l: { from: vehiclePrevious.trunk_capacity_l, to: vehicleCurrent.trunk_capacity_l },
+      energy_type: { from: vehiclePrevious.energy_type, to: vehicleCurrent.energy_type },
+      fuel_level: { from: vehiclePrevious.fuel_level, to: vehicleCurrent.fuel_level },
+      location: { from: vehiclePrevious.location, to: vehicleCurrent.location },
+      extras: { from: vehiclePrevious.extras, to: vehicleCurrent.extras },
+      cost_centre: { from: vehiclePrevious.cost_centre, to: vehicleCurrent.cost_centre },
       status: { from: vehiclePrevious.status, to: vehicleCurrent.status },
       kilometers: { from: vehiclePrevious.kilometers, to: vehicleCurrent.kilometers }
     };
@@ -1592,7 +1900,7 @@ exports.deleteVehicle = async (req, res) => {
     const { id } = req.params;
 
     // Cargar datos antes de eliminar
-    const [existing] = await db.query('SELECT license_plate, model FROM vehicles WHERE id = ?', [id]);
+    const [existing] = await db.query('SELECT license_plate, brand, model FROM vehicles WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({ error: 'Vehículo no encontrado' });
     }
@@ -1612,7 +1920,9 @@ exports.deleteVehicle = async (req, res) => {
     await auditLogger.logAction(req.user.id, 'DELETE', 'vehicles', id, req.user.role, {
       action: 'Vehículo eliminado',
       license_plate: deletedVehicle.license_plate,
+      brand: deletedVehicle.brand,
       model: deletedVehicle.model,
+      label: formatVehicleLabel(deletedVehicle),
       deleted_by: deletedByUsername
     });
 
@@ -2036,9 +2346,9 @@ exports.uploadVehicleDocument = (req, res) => {
 
       const filePath = req.file ? req.file.filename : null;
 
-      const [vehicleRows] = await db.query('SELECT model, license_plate FROM vehicles WHERE id = ?', [id]);
+      const [vehicleRows] = await db.query('SELECT brand, model, license_plate FROM vehicles WHERE id = ?', [id]);
       const vehiculoInfo = vehicleRows.length > 0
-        ? `${vehicleRows[0].model} (${vehicleRows[0].license_plate})`
+        ? formatVehicleLabel(vehicleRows[0])
         : `ID: ${id}`;
 
       const [result] = await db.query(
@@ -2101,11 +2411,11 @@ exports.deleteVehicleDocument = async (req, res) => {
     let vehiculoInfo = 'Vehículo desconocido';
     if (document.vehicle_id) {
       const [vehicleData] = await db.query(
-        'SELECT model, license_plate FROM vehicles WHERE id = ?',
+        'SELECT brand, model, license_plate FROM vehicles WHERE id = ?',
         [document.vehicle_id]
       );
       if (vehicleData && vehicleData.length > 0) {
-        vehiculoInfo = `${vehicleData[0].model} (${vehicleData[0].license_plate})`;
+        vehiculoInfo = formatVehicleLabel(vehicleData[0]);
       }
     }
 
@@ -2220,9 +2530,9 @@ exports.updateVehicleDocument = (req, res) => {
       const modifiedFields = Object.keys(changes).filter(key => changes[key].from !== changes[key].to);
 
       // Obtener info del vehículo para el audit
-      const [vehicleRows] = await db.query('SELECT model, license_plate FROM vehicles WHERE id = ?', [previousDoc.vehicle_id]);
+      const [vehicleRows] = await db.query('SELECT brand, model, license_plate FROM vehicles WHERE id = ?', [previousDoc.vehicle_id]);
       const vehiculoInfo = vehicleRows.length > 0
-        ? `${vehicleRows[0].model} (${vehicleRows[0].license_plate})`
+        ? formatVehicleLabel(vehicleRows[0])
         : `ID: ${previousDoc.vehicle_id}`;
 
       // Registrar auditoría de actualización de documento (no bloqueante)
@@ -2294,8 +2604,8 @@ exports.getValidations = async (req, res) => {
     }
 
     if (search) {
-      whereClause += ` AND (u.username LIKE ? OR ve.license_plate LIKE ? OR ve.model LIKE ?)`;
-      params.push(search, search, search);
+      whereClause += ` AND (u.username LIKE ? OR ve.brand LIKE ? OR ve.license_plate LIKE ? OR ve.model LIKE ?)`;
+      params.push(search, search, search, search);
     }
 
     if (startDate) {
@@ -2334,6 +2644,7 @@ exports.getValidations = async (req, res) => {
         v.decision_estado,
         v.foto_contador,
         u.username,
+        ve.brand,
         ve.license_plate,
         ve.model,
         r.start_time,
@@ -2482,7 +2793,7 @@ exports.updateValidation = async (req, res) => {
         [kmDifference, previousValidation.vehicle_id]
       );
 
-      const [vData] = await connection.query('SELECT model, license_plate, km_taller_acumulados, centre_id FROM vehicles WHERE id = ?', [previousValidation.vehicle_id]);
+      const [vData] = await connection.query('SELECT brand, model, license_plate, km_taller_acumulados, centre_id FROM vehicles WHERE id = ?', [previousValidation.vehicle_id]);
       if (vData.length > 0 && vData[0].km_taller_acumulados >= 15000) {
         const [cData] = await connection.query('SELECT nombre FROM centres WHERE id = ?', [vData[0].centre_id]);
         notifyStaffAboutWorkshop({
@@ -2563,14 +2874,14 @@ exports.resetWorkshopKilometerCounter = async (req, res) => {
       return res.status(400).json({ error: 'ID de vehículo requerido' });
     }
 
-    const [vehicleRows] = await db.query('SELECT id, model, license_plate FROM vehicles WHERE id = ?', [vehicleId]);
+    const [vehicleRows] = await db.query('SELECT id, brand, model, license_plate FROM vehicles WHERE id = ?', [vehicleId]);
 
     if (vehicleRows.length === 0) {
       return res.status(404).json({ error: 'Vehículo no encontrado' });
     }
 
     const vehicle = vehicleRows[0];
-    const vehiculoInfo = `${vehicle.model} (${vehicle.license_plate})`;
+    const vehiculoInfo = formatVehicleLabel(vehicle);
 
     // Resetear contador
     await db.query('UPDATE vehicles SET km_taller_acumulados = 0 WHERE id = ?', [vehicleId]);

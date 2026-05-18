@@ -42,6 +42,14 @@ const STATUS_STYLES = {
     'fecha': 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
 
+const formatVehicleLabel = (vehicle = {}, includePlate = true) => {
+    const brand = String(vehicle?.brand ?? '').trim();
+    const model = String(vehicle?.model ?? '').trim();
+    const plate = String(vehicle?.license_plate ?? '').trim();
+    const name = [brand, model].filter(Boolean).join(' / ') || model || brand || 'Vehículo';
+    return includePlate && plate ? `${name} (${plate})` : name;
+};
+
 
 
 
@@ -1114,7 +1122,7 @@ export default function ReservationsView({
                 status: reservation.status,
                 motivo_rechazo: reservation.motivo_rechazo || '',
                 // Guardamos info extra para mostrar mientras carga la lista
-                temp_vehicle_info: `${reservation.license_plate} - ${reservation.model}`
+                temp_vehicle_info: formatVehicleLabel(reservation)
             });
             setEditingId(reservation.id);
             // Cargar opciones excluyendo la reserva actual para que el vehículo actual aparezca en la lista
@@ -1646,7 +1654,7 @@ export default function ReservationsView({
                                                                 <input
                                                                     type="text"
                                                                     placeholder="Buscar o seleccionar vehículo..."
-                                                                    value={isVehicleDropdownOpen ? vehicleSearchTermDropdown : (formData.vehicle_id ? (vehiclesList.find(v => v.id == formData.vehicle_id) ? `${vehiclesList.find(v => v.id == formData.vehicle_id).license_plate} - ${vehiclesList.find(v => v.id == formData.vehicle_id).model}` : formData.temp_vehicle_info || '') : '')}
+                                                                    value={isVehicleDropdownOpen ? vehicleSearchTermDropdown : (formData.vehicle_id ? (vehiclesList.find(v => v.id == formData.vehicle_id) ? formatVehicleLabel(vehiclesList.find(v => v.id == formData.vehicle_id)) : formData.temp_vehicle_info || '') : '')}
                                                                     onChange={(e) => {
                                                                         setVehicleSearchTermDropdown(e.target.value);
                                                                         if (!isVehicleDropdownOpen) setIsVehicleDropdownOpen(true);
@@ -1682,7 +1690,7 @@ export default function ReservationsView({
                                                                                                     ? 'cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                                                                                                     : 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/40 opacity-70'}`}
                                                                                     >
-                                                                                        <span>{v.license_plate} - {v.model}</span>
+                                                                                        <span>{formatVehicleLabel(v)}</span>
                                                                                         {!selectable && (
                                                                                             <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full bg-white/60 dark:bg-white/10">
                                                                                                 No disponible
@@ -2670,7 +2678,7 @@ export default function ReservationsView({
                                                         <input
                                                             type="text"
                                                             placeholder="Buscar por matrícula o modelo..."
-                                                            value={isVehicleDropdownOpen ? vehicleSearchTermDropdown : (formData.vehicle_id ? (vehiclesList.find(v => v.id == formData.vehicle_id) ? `${vehiclesList.find(v => v.id == formData.vehicle_id).license_plate} - ${vehiclesList.find(v => v.id == formData.vehicle_id).model}` : formData.temp_vehicle_info || 'Cargando vehículo...') : '')}
+                                                            value={isVehicleDropdownOpen ? vehicleSearchTermDropdown : (formData.vehicle_id ? (vehiclesList.find(v => v.id == formData.vehicle_id) ? formatVehicleLabel(vehiclesList.find(v => v.id == formData.vehicle_id)) : formData.temp_vehicle_info || 'Cargando vehículo...') : '')}
                                                             onChange={(e) => {
                                                                 setVehicleSearchTermDropdown(e.target.value);
                                                                 if (!isVehicleDropdownOpen) setIsVehicleDropdownOpen(true);
@@ -2690,7 +2698,7 @@ export default function ReservationsView({
                                                         <span className={!formData.vehicle_id ? 'text-slate-400' : 'font-medium'}>
                                                             {formData.vehicle_id
                                                                 ? (vehiclesList.find(v => v.id == formData.vehicle_id)
-                                                                    ? `${vehiclesList.find(v => v.id == formData.vehicle_id).license_plate} - ${vehiclesList.find(v => v.id == formData.vehicle_id).model}`
+                                                                    ? formatVehicleLabel(vehiclesList.find(v => v.id == formData.vehicle_id))
                                                                     : formData.temp_vehicle_info || 'Cargando vehículo...')
                                                                 : 'Seleccionar vehículo...'}
                                                         </span>
@@ -2722,7 +2730,7 @@ export default function ReservationsView({
                                                                                             ? 'cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                                                                                             : 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/40 opacity-70'}`}
                                                                             >
-                                                                                <span>{v.license_plate} - {v.model}</span>
+                                                                                <span>{formatVehicleLabel(v)}</span>
                                                                                 {!selectable && (
                                                                                     <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full bg-white/60 dark:bg-white/10">
                                                                                         No disponible
@@ -2827,7 +2835,7 @@ export default function ReservationsView({
                                                                 paginatedModalReservations.map(reservation => (
                                                                     <tr key={reservation.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                                                         <td className="py-3.5 px-4 text-center text-slate-700 dark:text-slate-200 font-medium">
-                                                                            {reservation.model} <span className="ml-1 text-[11px] text-slate-500 dark:text-slate-400 font-mono">({reservation.license_plate})</span>
+                                                                            {formatVehicleLabel(reservation)}
                                                                         </td>
                                                                         <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
                                                                             {reservation.username}

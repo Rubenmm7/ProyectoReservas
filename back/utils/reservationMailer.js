@@ -28,6 +28,14 @@ const formatDateTime = (value) => {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 };
 
+const formatVehicleLabel = (reservation = {}) => {
+  const brand = String(reservation.brand ?? '').trim();
+  const model = String(reservation.model ?? '').trim();
+  const plate = String(reservation.license_plate ?? '').trim();
+  const name = [brand, model].filter(Boolean).join(' / ') || model || brand || '-';
+  return plate ? `${name} (${plate})` : name;
+};
+
 const getBrandName = () => String(process.env.MAIL_BRAND_NAME || 'MACROSAD').trim();
 const getLogoUrl = () => String(process.env.MAIL_LOGO_URL || '').trim();
 
@@ -129,7 +137,7 @@ const buildReservationText = ({ reservation, eventType }) => {
     config.intro,
     '',
     `Usuario: ${reservation?.username ?? '-'}`,
-    `Vehículo: ${reservation?.model ?? '-'} (${reservation?.license_plate ?? '-'})`,
+    `Vehículo: ${formatVehicleLabel(reservation)}`,
     `Inicio: ${formatDateTime(reservation?.start_time)}`,
     `Fin: ${formatDateTime(reservation?.end_time)}`,
     `Estado: ${reservation?.status ?? '-'}`,
@@ -146,7 +154,7 @@ const buildReservationHtml = ({ reservation, eventType }) => {
   const config = MAIL_EVENT_CONFIG[eventType] || MAIL_EVENT_CONFIG.test;
   const rows = [
     ['Usuario', reservation?.username ?? '-'],
-    ['Vehículo', `${reservation?.model ?? '-'} (${reservation?.license_plate ?? '-'})`],
+    ['Vehículo', formatVehicleLabel(reservation)],
     ['Inicio', formatDateTime(reservation?.start_time)],
     ['Fin', formatDateTime(reservation?.end_time)],
     ['Estado', reservation?.status

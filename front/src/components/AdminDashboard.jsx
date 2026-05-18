@@ -74,6 +74,14 @@ const getUserCentreText = (user) => {
   return text || 'Sin centro asignado';
 };
 
+const formatVehicleLabel = (vehicle = {}, includePlate = true) => {
+  const brand = String(vehicle?.brand ?? '').trim();
+  const model = String(vehicle?.model ?? '').trim();
+  const plate = String(vehicle?.license_plate ?? '').trim();
+  const name = [brand, model].filter(Boolean).join(' / ') || model || brand || 'Vehículo';
+  return includePlate && plate ? `${name} (${plate})` : name;
+};
+
 const getReservationEffectiveStatusForTime = (reservation, now = new Date()) => {
   return getDesiredReservationStatusForTime(reservation, now) ?? String(reservation?.status ?? '').toLowerCase();
 };
@@ -293,7 +301,7 @@ const ActiveReservationCard = ({
             {'Formulario de entrega del vehículo'}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            {reservation.model} ({reservation.license_plate})
+            {formatVehicleLabel(reservation)}
           </p>
         </div>
         <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[reservation.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>

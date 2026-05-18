@@ -11,17 +11,27 @@ INSERT INTO users (id, username, password, role) VALUES
 (11, 'gestor', 'gestor123', 'gestor'),
 (12, 'gestor2', 'gestor123', 'gestor');
 
-INSERT INTO vehicles (id, license_plate, model, status, kilometers) VALUES
-(1, '1234BBC', 'Toyota Corolla Hybrid', 'disponible', 15200),
-(2, '5678DFB', 'Renault Kangoo Z.E.', 'disponible', 45200),
-(3, '9012GHJ', 'Ford Transit Custom', 'disponible', 89000),
-(4, '3456JKL', 'Seat Leon FR', 'disponible', 12000),
-(5, '7890MNP', 'Volkswagen Golf VIII', 'disponible', 65400),
-(6, '9876XYZ', 'Dacia Sandero', 'disponible', 15200),
-(7, '6789TVW', 'Peugeot 3008 GT', 'disponible', 5000),
-(8, '0123WXY', 'Hyundai i30 N-Line', 'disponible', 21000),
-(9, '4567BBB', 'Mercedes Sprinter XL', 'disponible', 110000),
-(10, '8901CCC', 'Fiat Fiorino Cargo', 'disponible', 72000);
+INSERT INTO vehicles (id, license_plate, brand, model, vehicle_type, seats, trunk_capacity_l, energy_type, fuel_level, status, kilometers) VALUES
+(1, '1234BBC', 'Toyota', 'Corolla Hybrid', 'turismo', 5, 361, 'hibrido', 'medio-lleno', 'disponible', 15200),
+(2, '5678DFB', 'Renault', 'Kangoo Z.E.', 'furgoneta', 2, 660, 'electrico', 'lleno', 'disponible', 45200),
+(3, '9012GHJ', 'Ford', 'Transit Custom', 'furgoneta', 3, 620, 'combustion', 'medio', 'disponible', 89000),
+(4, '3456JKL', 'Seat', 'Leon FR', 'turismo', 5, 380, 'combustion', 'medio-lleno', 'disponible', 12000),
+(5, '7890MNP', 'Volkswagen', 'Golf VIII', 'turismo', 5, 381, 'hibrido', 'lleno', 'disponible', 65400),
+(6, '9876XYZ', 'Dacia', 'Sandero', 'turismo', 5, 328, 'combustion', 'medio', 'disponible', 15200),
+(7, '6789TVW', 'Peugeot', '3008 GT', 'suv', 5, 520, 'hibrido', 'medio-lleno', 'disponible', 5000),
+(8, '0123WXY', 'Hyundai', 'i30 N-Line', 'turismo', 5, 395, 'combustion', 'medio', 'disponible', 21000),
+(9, '4567BBB', 'Mercedes', 'Sprinter XL', 'furgoneta', 9, 1700, 'combustion', 'medio-lleno', 'disponible', 110000),
+(10, '8901CCC', 'Fiat', 'Fiorino Cargo', 'furgoneta', 2, 2500, 'combustion', 'lleno', 'disponible', 72000),
+(11, '2345DDD', 'Audi', 'A4 Avant', 'berlina', 5, 495, 'hibrido', 'medio-lleno', 'disponible', 28400),
+(12, '3456EEE', 'BMW', 'X1 xDrive', 'suv', 5, 540, 'hibrido', 'medio', 'disponible', 19300),
+(13, '4567FFF', 'Kia', 'Niro EV', 'suv', 5, 475, 'electrico', 'lleno', 'disponible', 8600),
+(14, '5678GGG', 'Opel', 'Combo Life', 'monovolumen', 7, 597, 'combustion', 'medio-lleno', 'disponible', 37250),
+(15, '6789HHH', 'Skoda', 'Octavia', 'berlina', 5, 600, 'combustion', 'medio', 'disponible', 41500),
+(16, '7890JJJ', 'Volvo', 'XC40 Recharge', 'suv', 5, 413, 'electrico', 'lleno', 'disponible', 12100),
+(17, '8901KKK', 'Mazda', 'CX-5', 'suv', 5, 506, 'combustion', 'medio-lleno', 'disponible', 33800),
+(18, '9012LLL', 'Citroen', 'Berlingo XL', 'furgoneta', 3, 850, 'combustion', 'medio', 'disponible', 62400),
+(19, '0123MMM', 'Nissan', 'Leaf', 'turismo', 5, 435, 'electrico', 'medio-lleno', 'disponible', 18800),
+(20, '1234NNN', 'Toyota', 'Proace City', 'furgoneta', 2, 2100, 'combustion', 'medio', 'disponible', 49800);
 
 INSERT INTO documents (vehicle_id, original_name, type, expiration_date) VALUES 
 (1, 'itv_corolla_2024.pdf', 'itv', '2026-12-01'),
@@ -33,6 +43,17 @@ INSERT INTO documents (vehicle_id, original_name, type, expiration_date) VALUES
 (8, 'seguro_reale_i30.pdf', 'seguro', '2028-09-12'),
 (9, 'itv_sprinter_2024.pdf', 'itv', '2027-08-22'),
 (10, 'itv_fiorino_2025.pdf', 'itv', '2026-03-05'),
+(11, 'itv_audi_avant.pdf', 'itv', '2028-07-18'),
+(12, 'itv_bmw_x1.pdf', 'itv', '2027-05-14'),
+(13, 'itv_kia_niro.pdf', 'itv', '2028-02-28'),
+(14, 'itv_opel_combo.pdf', 'itv', '2026-11-01'),
+(15, 'itv_skoda_octavia.pdf', 'itv', '2027-04-09'),
+(16, 'itv_volvo_xc40.pdf', 'itv', '2028-01-25'),
+(17, 'itv_mazda_cx5.pdf', 'itv', '2027-09-30'),
+(18, 'itv_citroen_berlingo.pdf', 'itv', '2026-08-12'),
+(19, 'itv_nissan_leaf.pdf', 'itv', '2028-03-15'),
+(20, 'itv_toyota_proace.pdf', 'itv', '2027-06-07'),
+
 /*Partes de taller*/
 (1, 'revision_15k_corolla.pdf', 'parte-taller', '2027-12-31'),
 (2, 'revision_kangoo.pdf', 'parte-taller', '2027-12-31'),
@@ -42,4 +63,14 @@ INSERT INTO documents (vehicle_id, original_name, type, expiration_date) VALUES
 (7, 'revision_3008.pdf', 'parte-taller', '2027-12-31'),
 (8, 'revision_i30.pdf', 'parte-taller', '2027-12-31'),
 (9, 'revision_sprinter.pdf', 'parte-taller', '2027-12-31'),
-(10, 'revision_fiorino.pdf', 'parte-taller', '2027-12-31');
+(10, 'revision_fiorino.pdf', 'parte-taller', '2027-12-31'),
+(11, 'revision_audi.pdf', 'parte-taller', '2027-12-31'),
+(12, 'revision_bmw.pdf', 'parte-taller', '2027-12-31'),
+(13, 'revision_kia.pdf', 'parte-taller', '2027-12-31'),
+(14, 'revision_opel.pdf', 'parte-taller', '2027-12-31'),
+(15, 'revision_skoda.pdf', 'parte-taller', '2027-12-31'),
+(16, 'revision_volvo.pdf', 'parte-taller', '2027-12-31'),
+(17, 'revision_mazda.pdf', 'parte-taller', '2027-12-31'),
+(18, 'revision_citroen.pdf', 'parte-taller', '2027-12-31'),
+(19, 'revision_nissan.pdf', 'parte-taller', '2027-12-31'),
+(20, 'revision_toyota.pdf', 'parte-taller', '2027-12-31');

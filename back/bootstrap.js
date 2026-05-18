@@ -4,6 +4,8 @@ const { initializeAllCronJobs } = require('./utils/cronJobs');
 const { syncCentresFromUnifica } = require('./utils/centresSync');
 const { ensureReservationMailStateColumns } = require('./utils/reservationMailState');
 const { ensureUserAuthProviderColumn } = require('./utils/authProviderMigration');
+const { ensureVehicleProfileColumns } = require('./utils/vehicleMigration');
+const { seedExtraVehicles } = require('./utils/seedExtraVehicles');
 
 const runBootstrapTasks = async () => {
   const connection = await db.getConnection();
@@ -13,6 +15,8 @@ const runBootstrapTasks = async () => {
 
     await ensureReservationMailStateColumns();
     await ensureUserAuthProviderColumn();
+    await ensureVehicleProfileColumns();
+    await seedExtraVehicles();
     await hashStoredPasswords();
     initializeAllCronJobs();
 

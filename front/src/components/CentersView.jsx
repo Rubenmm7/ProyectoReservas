@@ -9,6 +9,14 @@ import { normalizeSearchText } from '../utils/reservationsViewHelpers';
 
 const INITIAL_FORM_STATE = { id_unifica: '', nombre: '', provincia: '', localidad: '', direccion: '', telefono: '', codigo_postal: '' };
 
+const formatVehicleLabel = (vehicle = {}, includePlate = true) => {
+    const brand = String(vehicle?.brand ?? '').trim();
+    const model = String(vehicle?.model ?? '').trim();
+    const plate = String(vehicle?.license_plate ?? '').trim();
+    const name = [brand, model].filter(Boolean).join(' / ') || model || brand || 'Vehículo';
+    return includePlate && plate ? `${name} (${plate})` : name;
+};
+
 const CentersView = ({ onModalChange }) => {
     const isMobile = useIsMobile();
     const [centres, setCentres] = useState([]);
@@ -500,14 +508,14 @@ const CentersView = ({ onModalChange }) => {
 
     const filteredLinkedVehicles = linkedVehicles.filter((vehicle) => {
         if (!vehicleQuery) return true;
-        return [vehicle.license_plate, vehicle.model, vehicle.status]
+        return [vehicle.brand, vehicle.license_plate, vehicle.model, vehicle.status]
             .filter(Boolean)
             .some((field) => normalizeSearchText(field).includes(vehicleQuery));
     });
 
     const filteredAvailableVehicles = availableVehicles.filter((vehicle) => {
         if (!vehicleQuery) return true;
-        return [vehicle.license_plate, vehicle.model, vehicle.status, vehicle.centre_name]
+        return [vehicle.brand, vehicle.license_plate, vehicle.model, vehicle.status, vehicle.centre_name]
             .filter(Boolean)
             .some((field) => normalizeSearchText(field).includes(vehicleQuery));
     });
@@ -1331,8 +1339,8 @@ const CentersView = ({ onModalChange }) => {
                                                 return (
                                                     <div key={v.id} className="flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-700/60">
                                                         <div className="flex flex-col min-w-0 gap-1">
-                                                            <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{v.license_plate}</span>
-                                                            <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{v.model}</span>
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{formatVehicleLabel(v, false)}</span>
+                                                            <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400 font-mono">{v.license_plate}</span>
                                                             <span
                                                                 className={`inline-flex w-fit items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${vehicleCentre.tone === 'current'
                                                                     ? 'bg-[#E5007D]/10 text-[#E5007D] border-[#E5007D]/20'
@@ -1380,8 +1388,8 @@ const CentersView = ({ onModalChange }) => {
                                                 return (
                                                     <div key={v.id} className={`flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-dashed ${isAssignedElsewhere ? 'border-amber-300 dark:border-amber-700/60' : 'border-slate-200 dark:border-slate-700/60'}`}>
                                                         <div className="flex flex-col min-w-0 gap-1">
-                                                            <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{v.license_plate}</span>
-                                                            <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{v.model}</span>
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{formatVehicleLabel(v, false)}</span>
+                                                            <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400 font-mono">{v.license_plate}</span>
                                                             <span
                                                                 className={`inline-flex w-fit items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${vehicleCentre.tone === 'current'
                                                                     ? 'bg-[#E5007D]/10 text-[#E5007D] border-[#E5007D]/20'
@@ -1434,7 +1442,7 @@ const CentersView = ({ onModalChange }) => {
                             Confirmar cambio de centro
                         </h3>
                         <p className="text-slate-600 dark:text-slate-300 text-center mb-3">
-                            Vas a mover el vehículo <span className="font-semibold">{pendingVehicleTransfer.vehicle.license_plate}</span> de <span className="font-semibold">{pendingVehicleTransfer.fromCentreName}</span> a <span className="font-semibold">{pendingVehicleTransfer.toCentreName}</span>.
+                            Vas a mover el vehículo <span className="font-semibold">{formatVehicleLabel(pendingVehicleTransfer.vehicle, false)}</span> de <span className="font-semibold">{pendingVehicleTransfer.fromCentreName}</span> a <span className="font-semibold">{pendingVehicleTransfer.toCentreName}</span>.
                         </p>
                         <p className="text-sm text-amber-700 dark:text-amber-300 text-center mb-6">
                             Al confirmar, el vehículo dejará de estar disponible en el centro anterior y pasará a este centro.

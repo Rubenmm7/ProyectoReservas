@@ -9,7 +9,108 @@ import DatePickerCalendar from './DatePickerCalendar';
 import { validateSpanishPlate, filterPlateInput } from '../utils/licensePlateValidator';
 import { normalizeSearchText } from '../utils/reservationsViewHelpers';
 
-const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0, centre_id: '' };
+const BRAND_OPTIONS = [
+  'Alfa Romeo',
+  'Alpine',
+  'Aston Martin',
+  'Audi',
+  'Bentley',
+  'BMW',
+  'BYD',
+  'Cadillac',
+  'Changan',
+  'Chery',
+  'Chevrolet',
+  'Citroen',
+  'Cupra',
+  'Dacia',
+  'Denza',
+  'DFSK',
+  'Dodge',
+  'DR Automobiles',
+  'DS Automobiles',
+  'Ebro',
+  'Ferrari',
+  'Fiat',
+  'Ford',
+  'Geely',
+  'GMC',
+  'GWM',
+  'Honda',
+  'Hyundai',
+  'Ineos',
+  'Isuzu',
+  'Jaguar',
+  'Jaecoo',
+  'Jeep',
+  'Kia',
+  'Lamborghini',
+  'Lancia',
+  'Land Rover',
+  'Leapmotor',
+  'Lepas',
+  'Lexus',
+  'Lynk & Co',
+  'Maserati',
+  'Maxus',
+  'Mazda',
+  'McLaren',
+  'Mercedes-Benz',
+  'MG',
+  'MINI',
+  'Mitsubishi',
+  'Nissan',
+  'Omoda',
+  'Opel',
+  'Peugeot',
+  'Polestar',
+  'Porsche',
+  'RAM',
+  'Renault',
+  'Seat',
+  'Skoda',
+  'Smart',
+  'SsangYong / KGM',
+  'Subaru',
+  'Suzuki',
+  'Tesla',
+  'Tiger',
+  'Toyota',
+  'Volkswagen',
+  'Volvo',
+  'Xpeng',
+  'Zeekr'
+];
+
+const VEHICLE_TYPE_OPTIONS = ['turismo', 'suv', 'furgoneta', 'industrial', 'berlina', 'monovolumen', 'otro'];
+const ENERGY_TYPE_OPTIONS = [
+    { value: 'combustion', label: 'Combustión' },
+    { value: 'hibrido', label: 'Híbrido' },
+    { value: 'electrico', label: 'Eléctrico' },
+];
+const FUEL_LEVEL_OPTIONS = [
+    { value: 'vacio', label: 'Vacío' },
+    { value: 'medio-vacio', label: 'Medio vacío' },
+    { value: 'medio', label: 'Medio' },
+    { value: 'medio-lleno', label: 'Medio lleno' },
+    { value: 'lleno', label: 'Lleno' },
+];
+
+const INITIAL_FORM_STATE = {
+    license_plate: '',
+    brand: '',
+    model: '',
+    vehicle_type: 'turismo',
+    seats: 5,
+    trunk_capacity_l: '',
+    energy_type: 'combustion',
+    fuel_level: 'medio',
+    extras: '',
+    status: 'disponible',
+    kilometers: 0,
+    centre_id: '',
+};
+
 const INITIAL_DOC_FORM_STATE = { type: '', expiration_date: '', original_name: '' };
 
 const STATUS_STYLES = {
@@ -39,6 +140,14 @@ const DOC_TYPE_LABELS = {
     'ficha-tecnica': 'Ficha técnica',
     'otros': 'Otros',
     'parte-taller': 'Parte de taller'
+};
+
+const getVehicleDisplayLabel = (vehicle, includePlate = true) => {
+    const brand = String(vehicle?.brand ?? '').trim();
+    const model = String(vehicle?.model ?? '').trim();
+    const plate = String(vehicle?.license_plate ?? '').trim();
+    const name = [brand, model].filter(Boolean).join(' / ') || model || brand || 'Vehículo';
+    return includePlate && plate ? `${name} (${plate})` : name;
 };
 
 const getVehicleOptionsFilter = (vehicle) => {
@@ -100,14 +209,23 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const [sortConfig, setSortConfig] = useState({ key: 'license_plate', direction: 'asc' });
     const [filterExpired, setFilterExpired] = useState(false);
     const [optionsFilter, setOptionsFilter] = useState('all');
+    const [brandFilter, setBrandFilter] = useState('');
+    const [vehicleTypeFilter, setVehicleTypeFilter] = useState('');
+    const [energyTypeFilter, setEnergyTypeFilter] = useState('');
+    const [fuelLevelFilter, setFuelLevelFilter] = useState('');
+
+    const [seatsMinFilter, setSeatsMinFilter] = useState('');
+    const [seatsMaxFilter, setSeatsMaxFilter] = useState('');
+    const [trunkMinFilter, setTrunkMinFilter] = useState('');
+    const [trunkMaxFilter, setTrunkMaxFilter] = useState('');
     const [centres, setCentres] = useState([]);
     const [centreSearchTerm, setCentreSearchTerm] = useState('');
     const autoOpenRequestRef = useRef(null);
 
     // Paginación y Scroll Infinito
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 8;
-    const [visibleItems, setVisibleItems] = useState(8);
+    const itemsPerPage = 7;
+    const [visibleItems, setVisibleItems] = useState(7);
     const [totalRecords, setTotalRecords] = useState(0);
     const [serverTotalPages, setServerTotalPages] = useState(0);
     const scrollObserverRef = useRef(null);
@@ -184,8 +302,16 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             const optionsFilterParam = optionsFilter && optionsFilter !== 'all'
                 ? `&optionsFilter=${encodeURIComponent(optionsFilter)}`
                 : '';
+            const brandParam = brandFilter ? `&brand=${encodeURIComponent(brandFilter)}` : '';
+            const vehicleTypeParam = vehicleTypeFilter ? `&vehicleType=${encodeURIComponent(vehicleTypeFilter)}` : '';
+            const energyTypeParam = energyTypeFilter ? `&energyType=${encodeURIComponent(energyTypeFilter)}` : '';
+            const fuelLevelParam = fuelLevelFilter ? `&fuelLevel=${encodeURIComponent(fuelLevelFilter)}` : '';
+            const seatsMinParam = seatsMinFilter !== '' ? `&seatsMin=${encodeURIComponent(seatsMinFilter)}` : '';
+            const seatsMaxParam = seatsMaxFilter !== '' ? `&seatsMax=${encodeURIComponent(seatsMaxFilter)}` : '';
+            const trunkMinParam = trunkMinFilter !== '' ? `&trunkMin=${encodeURIComponent(trunkMinFilter)}` : '';
+            const trunkMaxParam = trunkMaxFilter !== '' ? `&trunkMax=${encodeURIComponent(trunkMaxFilter)}` : '';
             const sortParam = sortConfig ? `&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}` : '';
-            const response = await fetch(`/api/dashboard/vehicles?page=${page}&limit=8${searchParam}${expiredParam}${optionsFilterParam}${sortParam}`);
+            const response = await fetch(`/api/dashboard/vehicles?page=${page}&limit=7${searchParam}${expiredParam}${optionsFilterParam}${brandParam}${vehicleTypeParam}${energyTypeParam}${fuelLevelParam}${seatsMinParam}${seatsMaxParam}${trunkMinParam}${trunkMaxParam}${sortParam}`);
             const data = await response.json();
             const nextVehicles = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
             if (!append && !searchTerm.trim() && optionsFilter !== 'all' && nextVehicles.length === 0) {
@@ -230,7 +356,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     useEffect(() => {
         setVehicles([]);
         setCurrentPage(1);
-        setVisibleItems(8);
+        setVisibleItems(7);
         setTotalRecords(0);
         setServerTotalPages(0);
         loadingPagesRef.current.clear();
@@ -241,7 +367,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         }, 30000);
 
         return () => clearInterval(intervalId);
-    }, [searchTerm, filterExpired, sortConfig, optionsFilter]);
+    }, [searchTerm, filterExpired, sortConfig, optionsFilter, brandFilter, vehicleTypeFilter, energyTypeFilter, fuelLevelFilter, seatsMinFilter, seatsMaxFilter, trunkMinFilter, trunkMaxFilter]);
 
     // Cargar nueva página al navegar (incluido volver a página 1)
     useEffect(() => {
@@ -308,7 +434,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             (entries) => {
                 if (entries[0].isIntersecting) {
                     if (visibleItems < vehicles.length) {
-                        setVisibleItems((prev) => prev + 8);
+                        setVisibleItems((prev) => prev + 7);
                     } else if (currentPage < totalPages) {
                         const nextPage = currentPage + 1;
                         setCurrentPage(nextPage);
@@ -342,7 +468,14 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         if (vehicle) {
             setFormData({
                 license_plate: vehicle.license_plate,
+                brand: vehicle.brand || '',
                 model: vehicle.model,
+                vehicle_type: vehicle.vehicle_type || 'turismo',
+                seats: vehicle.seats ?? 5,
+                trunk_capacity_l: vehicle.trunk_capacity_l ?? '',
+                energy_type: vehicle.energy_type || 'combustion',
+                fuel_level: vehicle.fuel_level || 'medio',
+                extras: vehicle.extras || '',
                 status: vehicle.status,
                 kilometers: vehicle.kilometers,
                 centre_id: vehicle.centre_id || ''
@@ -383,13 +516,27 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             ? `/api/dashboard/vehicles/${editingId}`
             : '/api/dashboard/vehicles';
 
+        const payload = {
+            ...formData,
+            license_plate: normalizedPlate,
+            brand: formData.brand.trim(),
+            model: formData.model.trim(),
+            vehicle_type: formData.vehicle_type,
+            seats: formData.seats === '' || formData.seats === null ? undefined : Number(formData.seats),
+            trunk_capacity_l: formData.trunk_capacity_l === '' ? undefined : Number(formData.trunk_capacity_l),
+            energy_type: formData.energy_type,
+            fuel_level: formData.fuel_level,
+            extras: formData.extras.trim() || undefined,
+            centre_id: formData.centre_id === '' ? undefined : formData.centre_id,
+        };
+
         try {
             const response = await fetch(url, {
                 method: isEditing ? 'PUT' : 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ ...formData, license_plate: normalizedPlate })
+                body: JSON.stringify(payload)
             });
 
             const data = await response.json();
@@ -794,6 +941,103 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                 </div>
             )}
 
+            <div className="mb-4 flex flex-wrap items-end gap-3">
+                <select
+                    value={brandFilter}
+                    onChange={(e) => setBrandFilter(e.target.value)}
+                    className="min-w-[160px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
+                >
+                    <option value="">Todas las marcas</option>
+                    {BRAND_OPTIONS.map((brand) => (
+                        <option key={brand} value={brand}>{brand}</option>
+                    ))}
+                </select>
+                <select
+                    value={vehicleTypeFilter}
+                    onChange={(e) => setVehicleTypeFilter(e.target.value)}
+                    className="min-w-[160px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
+                >
+                    <option value="">Todos los tipos</option>
+                    {VEHICLE_TYPE_OPTIONS.map((type) => (
+                        <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
+                    ))}
+                </select>
+                <select
+                    value={energyTypeFilter}
+                    onChange={(e) => setEnergyTypeFilter(e.target.value)}
+                    className="min-w-[150px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
+                >
+                    <option value="">Todas las energías</option>
+                    {ENERGY_TYPE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                </select>
+                <select
+                    value={fuelLevelFilter}
+                    onChange={(e) => setFuelLevelFilter(e.target.value)}
+                    className="min-w-[170px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
+                >
+                    <option value="">Combustible / batería</option>
+                    {FUEL_LEVEL_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                </select>
+
+                <input
+                    type="number"
+                    min="1"
+                    value={seatsMinFilter}
+                    onChange={(e) => setSeatsMinFilter(e.target.value)}
+                    placeholder="Plazas mín."
+                    className="w-28 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+                <input
+                    type="number"
+                    min="1"
+                    value={seatsMaxFilter}
+                    onChange={(e) => setSeatsMaxFilter(e.target.value)}
+                    placeholder="Plazas máx."
+                    className="w-28 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+                <input
+                    type="number"
+                    min="0"
+                    value={trunkMinFilter}
+                    onChange={(e) => setTrunkMinFilter(e.target.value)}
+                    placeholder="Maletero mín."
+                    className="w-32 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+                <input
+                    type="number"
+                    min="0"
+                    value={trunkMaxFilter}
+                    onChange={(e) => setTrunkMaxFilter(e.target.value)}
+                    placeholder="Maletero máx."
+                    className="w-32 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+                {(() => {
+                    const hasActiveFilters = brandFilter !== '' || vehicleTypeFilter !== '' || energyTypeFilter !== '' || fuelLevelFilter !== '' || seatsMinFilter !== '' || seatsMaxFilter !== '' || trunkMinFilter !== '' || trunkMaxFilter !== '';
+                    return (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setBrandFilter('');
+                                setVehicleTypeFilter('');
+                                setEnergyTypeFilter('');
+                                setFuelLevelFilter('');
+                                setSeatsMinFilter('');
+                                setSeatsMaxFilter('');
+                                setTrunkMinFilter('');
+                                setTrunkMaxFilter('');
+                            }}
+                            className={`px-3 py-2 rounded-xl border transition-colors ${hasActiveFilters ? 'border-red-500 bg-red-50 text-red-600 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                        >
+                            Limpiar filtros
+                        </button>
+                    );
+                })()}
+            </div>
+
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
                     <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin mb-4"></div>
@@ -818,7 +1062,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                         >
                             <div className="flex justify-between items-start mb-4">
                                 <div>
-                                    <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{v.model}</h3>
+                                    <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{getVehicleDisplayLabel(v, false)}</h3>
                                     <p className="text-primary font-mono text-sm mt-0.5">{v.license_plate}</p>
                                 </div>
                                 <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[v.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
@@ -894,14 +1138,14 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                         <table className="w-full text-sm text-left relative">
                             <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                                 <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                                    <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                                        <div className="flex items-center justify-center">
+                                            Vehículo {getSortIcon('model')}
+                                        </div>
+                                    </th>
                                     <th onClick={() => requestSort('license_plate')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Matrícula {getSortIcon('license_plate')}
-                                        </div>
-                                    </th>
-                                    <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                                        <div className="flex items-center justify-center">
-                                            Modelo {getSortIcon('model')}
                                         </div>
                                     </th>
                                     <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
@@ -940,13 +1184,13 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
                                         return (
                                     <tr key={v.id} style={rowHeight != null ? { height: `${rowHeight}px` } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                        <td className="py-3.6 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>
+                                        <td className="py-3.6 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{getVehicleDisplayLabel(v, false)}</td>
                                         <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
                                             <span
                                                 className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
-                                                title={v.model}
+                                                title={v.license_plate}
                                             >
-                                                {v.model}
+                                                {v.license_plate}
                                             </span>
                                         </td>
                                         <td className="py-3 px-4 text-center">
@@ -1165,6 +1409,101 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                     />
                                 </div>
 
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Marca</label>
+                                        <select
+                                            required
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                                            value={formData.brand}
+                                            onChange={e => setFormData({ ...formData, brand: e.target.value })}
+                                        >
+                                            <option value="">Seleccionar marca...</option>
+                                            {BRAND_OPTIONS.map((brand) => (
+                                                <option key={brand} value={brand}>{brand}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo de vehículo</label>
+                                        <select
+                                            required
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                                            value={formData.vehicle_type}
+                                            onChange={e => setFormData({ ...formData, vehicle_type: e.target.value })}
+                                        >
+                                            {VEHICLE_TYPE_OPTIONS.map((type) => (
+                                                <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Plazas</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            min="1"
+                                            max="99"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all"
+                                            value={formData.seats}
+                                            onChange={e => setFormData({ ...formData, seats: e.target.value === '' ? '' : parseInt(e.target.value, 10) })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Maletero (L)</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="99999"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all"
+                                            placeholder="Opcional"
+                                            value={formData.trunk_capacity_l}
+                                            onChange={e => setFormData({ ...formData, trunk_capacity_l: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Energía</label>
+                                        <select
+                                            required
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                                            value={formData.energy_type}
+                                            onChange={e => setFormData({ ...formData, energy_type: e.target.value })}
+                                        >
+                                            {ENERGY_TYPE_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Combustible / batería</label>
+                                        <select
+                                            required
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                                            value={formData.fuel_level}
+                                            onChange={e => setFormData({ ...formData, fuel_level: e.target.value })}
+                                        >
+                                            {FUEL_LEVEL_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Extras</label>
+                                    <textarea
+                                        rows="3"
+                                        maxLength="2000"
+                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all resize-none"
+                                        placeholder="Bluetooth, Android Auto, cámara trasera..."
+                                        value={formData.extras}
+                                        onChange={e => setFormData({ ...formData, extras: e.target.value })}
+                                    />
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
@@ -1372,7 +1711,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                         <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
                             <div className="min-w-0 flex-1 mr-4">
                                 <h3 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white truncate">Documentación</h3>
-                                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">{selectedVehicle?.license_plate} - {selectedVehicle?.model}</p>
+                                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">{getVehicleDisplayLabel(selectedVehicle)}</p>
                             </div>
                             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                                 {!isGestor && (

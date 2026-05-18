@@ -65,7 +65,16 @@ const centreUpdateSchema = centreSchema.partial().refine((data) => Object.keys(d
 
 const vehicleSchema = z.object({
     license_plate: z.string().trim().min(3).max(20),
+    brand: z.string().trim().min(1).max(80),
     model: z.string().trim().min(1).max(120),
+    vehicle_type: z.string().trim().min(1).max(50),
+    seats: z.coerce.number().int().positive().max(99).optional(),
+    trunk_capacity_l: z.coerce.number().int().nonnegative().max(99999).optional().nullable(),
+    energy_type: z.enum(['combustion', 'hibrido', 'electrico']),
+    fuel_level: z.enum(['vacio', 'medio-vacio', 'medio', 'medio-lleno', 'lleno']),
+    location: z.string().trim().max(120).optional().nullable(),
+    extras: z.string().trim().max(2000).optional().nullable(),
+    cost_centre: z.string().trim().max(80).optional().nullable(),
     kilometers: z.coerce.number().nonnegative().optional(),
     centre_id: z.union([z.coerce.number().int().positive(), z.null()]).optional(),
     status: z.string().trim().min(3).max(30).optional(),

@@ -55,6 +55,14 @@ const formatVehicleDecision = (value) => {
   return 'Pendiente';
 };
 
+const formatVehicleLabel = (vehicle = {}, includePlate = true) => {
+  const brand = String(vehicle?.brand ?? '').trim();
+  const model = String(vehicle?.model ?? '').trim();
+  const plate = String(vehicle?.license_plate ?? '').trim();
+  const name = [brand, model].filter(Boolean).join(' / ') || model || brand || 'Vehículo';
+  return includePlate && plate ? `${name} (${plate})` : name;
+};
+
 const loadImageDataUrl = async (src) => {
   const response = await fetch(src);
   const svgText = await response.text();
@@ -170,7 +178,7 @@ const buildValidationPdf = async (validation) => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
   doc.setTextColor(255, 255, 255);
-  doc.text(validation.model || 'Vehículo', margin + 5, y + 9);
+  doc.text(formatVehicleLabel(validation, false), margin + 5, y + 9);
   doc.setFontSize(11);
   doc.text(validation.license_plate || 'Sin matrícula', margin + 5, y + 16);
   doc.setFont('helvetica', 'normal');
@@ -187,7 +195,7 @@ const buildValidationPdf = async (validation) => {
   ]);
 
   addSection('Información del vehículo', [
-    { label: 'Vehículo', value: validation.model || 'Sin modelo' },
+    { label: 'Vehículo', value: formatVehicleLabel(validation, false) || 'Sin modelo' },
     { label: 'Matrícula', value: validation.license_plate || 'Sin matrícula' },
     { label: 'Kilómetros iniciales', value: `${validation.km_inicial ?? 0} km` },
     { label: 'Kilómetros de entrega', value: formatDeliveryKilometers(validation, 'Sin kilometraje registrado') },
@@ -545,7 +553,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
           </button>
           <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-1">Detalle de validación</p>
           <h3 className="text-white-60 text-xl font-bold leading-tight dark:text-white/90">
-            {validation.model}
+            {formatVehicleLabel(validation, false)}
           </h3>
           <p className="text-primary text-sm font-mono mt-0.5">{validation.license_plate}</p>
         </div>
@@ -1166,11 +1174,10 @@ const ValidationsView = () => {
                         <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">
                           <span
                             className="font-semibold inline-block max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap align-bottom"
-                            title={v.model}
+                            title={formatVehicleLabel(v)}
                           >
-                            {v.model}
+                            {formatVehicleLabel(v)}
                           </span>
-                          <span className="uppercase ml-1 text-xs">({v.license_plate})</span>
                         </td>
                         <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">{formatDate(v.created_at)}</td>
                         <td className="py-3 px-4 text-center">
@@ -1316,7 +1323,7 @@ const ValidationsView = () => {
                     <div className="min-w-0 flex-1 pr-3">
                       <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight truncate" title={v.username}>{v.username}</h3>
                       <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
-                        {v.model} <span className="font-bold uppercase ml-1">({v.license_plate})</span>
+                        {formatVehicleLabel(v)}
                       </p>
                     </div>
                     <span className={`px-4 py-1.5 rounded-full text-xs font-semibold border ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30' : 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/30'}`}>
