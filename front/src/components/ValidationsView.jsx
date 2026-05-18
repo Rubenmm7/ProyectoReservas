@@ -361,6 +361,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
 // --- MODAL DE DETALLE DE VALIDACIÓN ---
 const ValidationDetailModal = ({ validation, onClose }) => {
   const isReadOnly = validation.status === 'revisada';
+  const isMobile = useIsMobile();
   const originalComentario = validation.informe_superior || '';
   const deliveryKm = getDeliveryKilometers(validation);
   const hasDeliveryKm = hasValidDeliveryKilometers(validation);
@@ -540,26 +541,28 @@ const ValidationDetailModal = ({ validation, onClose }) => {
       )}
 
       {/* Panel */}
-      <div className={`bg-white dark:bg-slate-800 rounded-3xl w-full ${hasFoto ? '' : 'max-w-lg'} h-full relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700 overflow-hidden flex`}>
-        <div className={`overflow-y-auto flex flex-col ${hasFoto ? 'w-2/5 shrink-0 border-r border-slate-200 dark:border-slate-700' : 'flex-1 min-w-0'}`}>
+      <div className={`bg-white dark:bg-slate-800 rounded-3xl w-full h-full relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700 overflow-hidden flex ${isMobile ? 'flex-col' : hasFoto ? '' : 'max-w-lg'}`}>
+        <div className={`overflow-y-auto flex flex-col ${isMobile ? 'flex-1 min-w-0 order-last' : hasFoto ? 'w-2/5 shrink-0 border-r border-slate-200 dark:border-slate-700' : 'flex-1 min-w-0'}`}>
 
         {/* Header */}
-        <div className="relative dark:border-slate-700 bg-white dark:bg-slate-800/50 px-7 pt-7 pb-2 ">
+        <div className={`relative border-b border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 ${isMobile ? 'flex items-center gap-3 px-4 py-3 shrink-0' : 'px-7 pt-7 pb-2'}`}>
+          <div className={isMobile ? 'flex-1 min-w-0' : ''}>
+            <p className={`text-slate-400 dark:text-white/40 font-semibold uppercase tracking-widest ${isMobile ? 'text-[9px] mb-0.5' : 'text-xs mb-1'}`}>Detalle de validación</p>
+            <h3 className={`font-bold leading-tight text-slate-800 dark:text-white/90 ${isMobile ? 'text-sm truncate' : 'text-xl'}`}>
+              {formatVehicleLabel(validation, false)}
+            </h3>
+            <p className={`text-primary font-mono ${isMobile ? 'text-xs' : 'text-sm mt-0.5'}`}>{validation.license_plate}</p>
+          </div>
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 dark:bg-white/20 hover:bg-black/60 dark:hover:bg-white/30 text-white transition-colors"
+            className={`flex items-center justify-center rounded-full transition-colors ${isMobile ? 'shrink-0 w-8 h-8 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600' : 'absolute top-4 right-4 w-8 h-8 bg-black/50 dark:bg-white/20 hover:bg-black/60 dark:hover:bg-white/30 text-white'}`}
           >
             <FontAwesomeIcon icon={faXmark} className="text-sm" />
           </button>
-          <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-1">Detalle de validación</p>
-          <h3 className="text-white-60 text-xl font-bold leading-tight dark:text-white/90">
-            {formatVehicleLabel(validation, false)}
-          </h3>
-          <p className="text-primary text-sm font-mono mt-0.5">{validation.license_plate}</p>
         </div>
 
         {/* Body */}
-        <div className="px-7 pb-7 pt-3">
+        <div className={isMobile ? 'px-4 pb-6 pt-4' : 'px-7 pb-7 pt-3'}>
           {/* Mensaje del usuario */}
           <div className="mb-5">
             <label className="flex items-center gap-2 text-md tracking-wider text-slate-500 dark:text-slate-400 mb-2">
@@ -753,31 +756,58 @@ const ValidationDetailModal = ({ validation, onClose }) => {
         </div>
 
         {hasFoto && (
-          <div className="flex-1 flex flex-col bg-slate-100 dark:bg-slate-900 animate-in slide-in-from-right duration-300">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80">
-              <div>
-                <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Foto usuario</p>
-                <p className="text-sm font-bold text-slate-700 dark:text-white">Foto cuentakilómetros usuario</p>
-              </div>
-              <button
-                onClick={openFullscreen}
-                className="p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                title="Pantalla completa"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
+          isMobile ? (
+            <div
+              className="order-first shrink-0 relative bg-slate-900 cursor-zoom-in overflow-hidden"
+              style={{ height: '180px' }}
+              onClick={openFullscreen}
+            >
               <img
                 src={validation.foto_contador}
                 alt="Foto cuentakilómetros"
-                className="max-w-full max-h-full rounded-2xl object-contain border border-slate-200 dark:border-slate-700 shadow-lg cursor-zoom-in"
-                onClick={openFullscreen}
+                className="w-full h-full object-contain"
+                draggable={false}
               />
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2 flex items-end justify-between">
+                <div>
+                  <p className="text-[9px] font-bold text-primary uppercase tracking-wider">Foto usuario</p>
+                  <p className="text-xs text-white font-semibold">Foto cuentakilómetros</p>
+                </div>
+                <div className="flex items-center gap-1 bg-white/10 rounded-lg px-2 py-1">
+                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                  </svg>
+                  <span className="text-white text-[10px] font-semibold">Ampliar</span>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex-1 flex flex-col bg-slate-100 dark:bg-slate-900 animate-in slide-in-from-right duration-300">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80">
+                <div>
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Foto usuario</p>
+                  <p className="text-sm font-bold text-slate-700 dark:text-white">Foto cuentakilómetros usuario</p>
+                </div>
+                <button
+                  onClick={openFullscreen}
+                  className="p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  title="Pantalla completa"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
+                <img
+                  src={validation.foto_contador}
+                  alt="Foto cuentakilómetros"
+                  className="max-w-full max-h-full rounded-2xl object-contain border border-slate-200 dark:border-slate-700 shadow-lg cursor-zoom-in"
+                  onClick={openFullscreen}
+                />
+              </div>
+            </div>
+          )
         )}
       </div>
     </div>

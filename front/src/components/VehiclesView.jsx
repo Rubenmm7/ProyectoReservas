@@ -183,8 +183,11 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const [deleteId, setDeleteId] = useState(null);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [isCentreDropdownOpen, setIsCentreDropdownOpen] = useState(false);
+    const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
     const statusDropdownRef = useRef(null);
     const centreDropdownRef = useRef(null);
+    const mobileFiltersRef = useRef(null);
+    const mobileFiltersBtnRef = useRef(null);
 
     // Document Management State
     const [documents, setDocuments] = useState([]);
@@ -295,6 +298,8 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     };
 
     const fetchVehicles = async (page = 1, append = false) => {
+        if (loadingPagesRef.current.has(page)) return;
+        loadingPagesRef.current.add(page);
         setLoading(true);
         try {
             const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
@@ -322,7 +327,11 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                 setOptionsFilter('all');
                 return;
             }
-            setVehicles((prev) => append ? [...prev, ...nextVehicles] : nextVehicles);
+            setVehicles((prev) => {
+                if (!append) return nextVehicles;
+                const existingIds = new Set(prev.map((v) => v.id));
+                return [...prev, ...nextVehicles.filter((v) => !existingIds.has(v.id))];
+            });
             setTotalRecords(Number(data?.pagination?.totalRecords || nextVehicles.length));
             setServerTotalPages(Number(data?.pagination?.totalPages || 1));
         } catch (error) {
@@ -451,6 +460,25 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
         return () => observer.disconnect();
     }, [isMobile, visibleItems, vehicles.length, currentPage, totalPages]);
+
+    // Cerrar panel de filtros móvil al tocar fuera
+    useEffect(() => {
+        if (!isMobileFiltersOpen) return;
+        const handleClickOutside = (e) => {
+            if (
+                mobileFiltersRef.current && !mobileFiltersRef.current.contains(e.target) &&
+                mobileFiltersBtnRef.current && !mobileFiltersBtnRef.current.contains(e.target)
+            ) {
+                setIsMobileFiltersOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('touchstart', handleClickOutside);
+        };
+    }, [isMobileFiltersOpen]);
 
     // Bloquear scroll al abrir modal
     useEffect(() => {
@@ -851,23 +879,50 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                         </div>
                     </div>
 
-                    {/* Fila 2: Filtro Docs a la izquierda, Añadir a la derecha */}
+                    {/* Fila 2: Botones de filtro a la izquierda, Añadir a la derecha */}
                     <div className="flex items-center justify-between">
-                        <button
-                            onClick={() => {
-                                setOptionsFilter('all');
-                                setFilterExpired((prev) => !prev);
-                            }}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
-                                ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
-                                : 'text-red-500 bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
-                                }`}
-                            title={filterExpired ? "Mostrar todos" : "Filtrar expirados"}
-                        >
-                            <svg className={`w-4 h-4 transition-transform duration-300 ${filterExpired ? 'scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {/* Botón toggle filtros avanzados */}
+                            <button
+                                ref={mobileFiltersBtnRef}
+                                onClick={() => setIsMobileFiltersOpen((prev) => !prev)}
+                                className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all border ${isMobileFiltersOpen
+                                    ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
+                                    : 'text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/60 border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                    }`}
+                                title="Filtros avanzados"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+                                </svg>
+                                <span className="text-xs font-semibold">Filtros</span>
+                                {(() => {
+                                    const n = [brandFilter, vehicleTypeFilter, energyTypeFilter, fuelLevelFilter, seatsMinFilter, seatsMaxFilter, trunkMinFilter, trunkMaxFilter].filter(Boolean).length;
+                                    return n > 0 ? (
+                                        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-primary text-white text-[10px] font-bold border-2 border-white dark:border-slate-800">
+                                            {n}
+                                        </span>
+                                    ) : null;
+                                })()}
+                            </button>
+
+                            {/* Botón documentos expirados */}
+                            <button
+                                onClick={() => {
+                                    setOptionsFilter('all');
+                                    setFilterExpired((prev) => !prev);
+                                }}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
+                                    ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
+                                    : 'text-red-500 bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
+                                    }`}
+                                title={filterExpired ? "Mostrar todos" : "Filtrar expirados"}
+                            >
+                                <svg className={`w-4 h-4 transition-transform duration-300 ${filterExpired ? 'scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </button>
+                        </div>
 
                         {!isGestor && (
                             <button
@@ -941,7 +996,8 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                 </div>
             )}
 
-            <div className="mb-4 flex flex-wrap items-end gap-3">
+            {(!isMobile || isMobileFiltersOpen) && (
+            <div ref={mobileFiltersRef} className={`mb-4 flex flex-wrap items-end gap-3${isMobile ? ' pt-3 border-t border-slate-100 dark:border-slate-700/50' : ''}`}>
                 <select
                     value={brandFilter}
                     onChange={(e) => setBrandFilter(e.target.value)}
@@ -1037,6 +1093,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                     );
                 })()}
             </div>
+            )}
 
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
