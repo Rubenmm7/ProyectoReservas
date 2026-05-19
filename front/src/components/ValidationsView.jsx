@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/http';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -64,7 +65,7 @@ const formatVehicleLabel = (vehicle = {}, includePlate = true) => {
 };
 
 const loadImageDataUrl = async (src) => {
-  const response = await fetch(src);
+  const response = await apiFetch(src);
   const svgText = await response.text();
   const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
   const objectUrl = URL.createObjectURL(svgBlob);
@@ -408,7 +409,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
   const handleUpdateCommentOnly = async () => {
     setIsSaving(true);
     try {
-      await fetch(`/api/dashboard/validations/${validation.id}`, {
+      const res = await apiFetch(`/api/dashboard/validations/${validation.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -456,7 +457,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
 
       // 1. Marcar LA VALIDACIÓN como revisada y guardar el comentario del supervisor
       // El backend ahora se encarga de actualizar el estado del vehículo en esta misma petición
-      const res = await fetch(`/api/dashboard/validations/${validation.id}`, {
+      const res = await apiFetch(`/api/dashboard/validations/${validation.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -909,7 +910,7 @@ const ValidationsView = () => {
       const startParam = filterStartDate ? `&startDate=${encodeURIComponent(filterStartDate)}` : '';
       const endParam = filterEndDate ? `&endDate=${encodeURIComponent(filterEndDate)}` : '';
       const sortParam = sortConfig?.key ? `&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}` : '';
-      const res = await fetch(`/api/dashboard/validations?page=${page}&limit=7${searchParam}${startParam}${endParam}${sortParam}`);
+      const res = await apiFetch(`/api/dashboard/validations?page=${page}&limit=7${searchParam}${startParam}${endParam}${sortParam}`);
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
@@ -955,7 +956,7 @@ const ValidationsView = () => {
     if (!deleteId) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(`/api/dashboard/validations/${deleteId}`, {
+      const res = await apiFetch(`/api/dashboard/validations/${deleteId}`, {
         method: 'DELETE'
       });
 

@@ -1,42 +1,38 @@
-const isRequestToApi = (input) => {
-  const url = typeof input === 'string' ? input : input?.url;
-  return typeof url === 'string' && url.includes('/api/');
-};
+/**
+ * Envolvedor seguro de fetch (apiFetch) que configura automáticamente las credenciales de sesión,
+ * valida los tipos de los argumentos y gestiona la expiración de la sesión (401/403) de forma global.
+ */
+export const apiFetch = async (input, init) => {
+  // Validar tipo de parámetro input
+  if (typeof input !== 'string' && !(input instanceof URL) && !(input instanceof Request)) {
+    throw new TypeError('El primer argumento de apiFetch "input" debe ser una cadena de texto, URL o una instancia de Request');
+  }
+  // Validar tipo de parámetro init
+  if (init !== undefined && (typeof init !== 'object' || init === null)) {
+    throw new TypeError('El segundo argumento de apiFetch "init" debe ser un objeto');
+  }
 
-const isLoginRequest = (input) => {
-  const url = typeof input === 'string' ? input : input?.url;
-  return typeof url === 'string' && url.includes('/api/auth/login');
-};
+  let finalInput = input;
+  let finalInit = init;
 
-export const createSessionAwareFetch = (originalFetch, onUnauthorized) => {
-  return async (...args) => {
-    let [input, init] = args;
+  if (input instanceof Request) {
+    const nextCredentials = input.credentials === 'omit' ? 'omit' : 'include';
+    finalInput = new Request(input, { credentials: nextCredentials });
+    finalInit = undefined;
+  } else {
+    finalInit = { ...(init || {}), credentials: init?.credentials ?? 'include' };
+  }
 
-    if (input instanceof Request) {
-      const nextCredentials = input.credentials === 'omit' ? 'omit' : 'include';
-      input = new Request(input, { credentials: nextCredentials });
-      init = undefined;
-    } else {
-      init = { ...(init || {}), credentials: init?.credentials ?? 'include' };
-    }
+  const response = await fetch(finalInput, finalInit);
 
-    const response = await originalFetch(input, init);
+  // Disparar cierre de sesión forzado si no está autorizado (401/403)
+  const url = typeof input === 'string' ? input : input?.url || '';
+  const isApi = typeof url === 'string' && url.includes('/api/');
+  const isLogin = typeof url === 'string' && url.includes('/api/auth/login');
 
-    if ((response.status === 401 || response.status === 403) && isRequestToApi(args[0]) && !isLoginRequest(args[0])) {
-      onUnauthorized?.();
-    }
+  if ((response.status === 401 || response.status === 403) && isApi && !isLogin) {
+    window.dispatchEvent(new Event('force-logout'));
+  }
 
-    return response;
-  };
-};
-
-export const installFetchInterceptor = (globalObject = window) => {
-  const originalFetch = globalObject.fetch.bind(globalObject);
-  globalObject.fetch = createSessionAwareFetch(originalFetch, () => {
-    globalObject.dispatchEvent(new Event('force-logout'));
-  });
-
-  return () => {
-    globalObject.fetch = originalFetch;
-  };
+  return response;
 };

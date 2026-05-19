@@ -60,12 +60,19 @@ exports.login = async (req, res) => {
 
     try {
         const [rows] = await db.query('SELECT * FROM users WHERE username = ? AND deleted_at IS NULL', [username]);
-        if (rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
-
         const user = rows[0];
-        let isMatch = await bcrypt.compare(password, user.password);
 
-        if (!isMatch && !user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
+        // Mitigar ataques de temporización ejecutando una comparación de bcrypt incluso si no se encuentra el usuario
+        const dummyHash = '$2a$10$NsY9h2vWlU5m1oK6iC/uO.9h2V5wJ2M1S/D7w6K5Y3D8';
+        const hashToCompare = user ? user.password : dummyHash;
+        let isMatch = false;
+
+        // Si la contraseña almacenada no es bcrypt, hacer comparación directa (compatibilidad heredada)
+        const isBcrypt = hashToCompare.startsWith('$2a$') || hashToCompare.startsWith('$2b$');
+        if (isBcrypt) {
+            isMatch = await bcrypt.compare(password, hashToCompare);
+        } else if (user) {
+            // Comparación en texto plano para la migración de contraseñas heredadas
             if (password === user.password) {
                 const salt = await bcrypt.genSalt(10);
                 const hashedPassword = await bcrypt.hash(password, salt);
@@ -74,10 +81,12 @@ exports.login = async (req, res) => {
             }
         }
 
-        if (!isMatch) return res.status(401).json({ error: 'Contraseña incorrecta' });
+        if (!user || !isMatch) {
+            return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+        }
 
         const userData = await getCurrentUserWithCentres(user.id);
-        if (!userData) return res.status(404).json({ error: 'Usuario no encontrado' });
+        if (!userData) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
 
         const token = jwt.sign(
             { id: userData.id, role: userData.role, centre_ids: userData.centre_ids },

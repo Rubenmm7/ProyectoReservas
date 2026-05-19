@@ -1,10 +1,11 @@
+import { apiFetch } from '../utils/http';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { clearSessionStorage, getSessionTiming } from '../utils/session';
+import { clearSessionStorage, getSessionTiming, persistSession, sanitizeUser } from '../utils/session';
 
 const readStoredUser = () => {
   try {
     const raw = localStorage.getItem('user');
-    return raw ? JSON.parse(raw) : {};
+    return raw ? sanitizeUser(JSON.parse(raw)) || {} : {};
   } catch {
     return {};
   }
@@ -52,7 +53,7 @@ export const useCurrentUser = ({ refreshIntervalMs = 30000 } = {}) => {
     try {
       refreshInFlightRef.current = true;
       setIsRefreshing(true);
-      const response = await fetch('/api/auth/me');
+      const response = await apiFetch('/api/auth/me');
 
       if (!response.ok) {
         const storedUser = readStoredUser();
@@ -63,8 +64,7 @@ export const useCurrentUser = ({ refreshIntervalMs = 30000 } = {}) => {
       const nextUser = data?.user || {};
 
       if (!isSameUser(currentUserRef.current, nextUser)) {
-        localStorage.setItem('user', JSON.stringify(nextUser));
-        localStorage.setItem('centres', JSON.stringify(nextUser.centres || []));
+        persistSession({ user: nextUser, centres: nextUser.centres || [] });
         return syncUserState(nextUser);
       }
 

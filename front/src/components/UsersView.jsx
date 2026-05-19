@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/http';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
@@ -90,8 +91,8 @@ const UsersView = ({ onModalChange }) => {
             const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
             const sortParam = sortConfig ? `&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}` : '';
             const [usRes, cenRes] = await Promise.all([
-                fetch(`/api/dashboard/users?page=${page}&limit=${pageSize}${searchParam}${sortParam}`),
-                fetch('/api/dashboard/centres')
+                apiFetch(`/api/dashboard/users?page=${page}&limit=${pageSize}${searchParam}${sortParam}`),
+                apiFetch('/api/dashboard/centres')
             ]);
 
             if (!usRes.ok || !cenRes.ok) {
@@ -253,7 +254,7 @@ const UsersView = ({ onModalChange }) => {
         }
 
         try {
-            const response = await fetch(url, {
+            const response = await apiFetch(url, {
                 method: isEditing ? 'PUT' : 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -288,7 +289,7 @@ const UsersView = ({ onModalChange }) => {
         const id = deleteId;
         setDeleteId(null);
 
-        const deletePromise = fetch(`/api/dashboard/users/${id}`, {
+        const deletePromise = apiFetch(`/api/dashboard/users/${id}`, {
             method: 'DELETE'
         });
 

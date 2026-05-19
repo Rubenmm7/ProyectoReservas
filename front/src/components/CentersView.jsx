@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/http';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
@@ -81,7 +82,7 @@ const CentersView = ({ onModalChange }) => {
         try {
             const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
             const sortParam = sortConfig ? `&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}` : '';
-            const response = await fetch(`/api/dashboard/centres?page=${page}&limit=7${searchParam}${sortParam}`);
+            const response = await apiFetch(`/api/dashboard/centres?page=${page}&limit=7${searchParam}${sortParam}`);
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.error || 'Error al cargar centros');
@@ -241,7 +242,7 @@ const CentersView = ({ onModalChange }) => {
             : '/api/dashboard/centres';
 
         try {
-            const response = await fetch(url, {
+            const response = await apiFetch(url, {
                 method: isEditing ? 'PUT' : 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -268,7 +269,7 @@ const CentersView = ({ onModalChange }) => {
         setSyncLoading(true);
         const toastId = toast.loading('Sincronizando centros...');
         try {
-            const response = await fetch('/api/dashboard/centres/sync', {
+            const response = await apiFetch('/api/dashboard/centres/sync', {
                 method: 'POST'
             });
             const data = await response.json();
@@ -296,7 +297,7 @@ const CentersView = ({ onModalChange }) => {
         const id = deleteId;
         setDeleteId(null);
 
-        const deletePromise = await fetch(`/api/dashboard/centres/${id}`, {
+        const deletePromise = await apiFetch(`/api/dashboard/centres/${id}`, {
             method: 'DELETE'
         });
 
@@ -321,9 +322,9 @@ const CentersView = ({ onModalChange }) => {
         }
         try {
             const [detailsRes, usersRes, vehiclesRes] = await Promise.all([
-                fetch(`/api/dashboard/centres/${id}/details`),
-                fetch('/api/dashboard/users?scope=centres'),
-                fetch('/api/dashboard/vehicles?scope=centres'),
+                apiFetch(`/api/dashboard/centres/${id}/details`),
+                apiFetch('/api/dashboard/users?scope=centres'),
+                apiFetch('/api/dashboard/vehicles?scope=centres'),
             ]);
 
             const detailsData = detailsRes.ok ? await detailsRes.json() : { vehicles: [], users: [] };
@@ -345,7 +346,7 @@ const CentersView = ({ onModalChange }) => {
     };
 
     const updateUserCentres = async (user, nextCentreIds) => {
-        const response = await fetch(`/api/dashboard/users/${user.id}`, {
+        const response = await apiFetch(`/api/dashboard/users/${user.id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
@@ -360,7 +361,7 @@ const CentersView = ({ onModalChange }) => {
     };
 
     const updateVehicleCentre = async (vehicle, centreId) => {
-        const response = await fetch(`/api/dashboard/vehicles/${vehicle.id}?scope=centres`, {
+        const response = await apiFetch(`/api/dashboard/vehicles/${vehicle.id}?scope=centres`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'

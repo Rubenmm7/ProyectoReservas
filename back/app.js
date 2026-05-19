@@ -4,7 +4,7 @@ const cookieParser = require('cookie-parser');
 const authRoutes = require('./routes/authRoutes');
 const auditRoutes = require('./routes/auditRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
-const { helmetMiddleware, apiLimiter } = require('./middleware/securityMiddleware');
+const { helmetMiddleware, apiLimiter, csrfProtection } = require('./middleware/securityMiddleware');
 
 const allowedOrigins = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:5173')
   .split(',')
@@ -19,6 +19,20 @@ const createApp = () => {
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true,
   }));
+
+  // Interceptor para sanitizar respuestas de error y evitar fugas de información técnica en producción
+  app.use((req, res, next) => {
+    const originalJson = res.json;
+    res.json = function (body) {
+      if (process.env.NODE_ENV === 'production' && body && typeof body === 'object') {
+        if ('details' in body) {
+          delete body.details;
+        }
+      }
+      return originalJson.call(this, body);
+    };
+    next();
+  });
 
   app.use((req, _res, next) => {
     if (
@@ -47,6 +61,7 @@ const createApp = () => {
   app.use(cookieParser());
   app.use(helmetMiddleware);
   app.use('/api/', apiLimiter);
+  app.use('/api/', csrfProtection);
 
   app.use('/api/auth', authRoutes);
   app.use('/api/audit', auditRoutes);

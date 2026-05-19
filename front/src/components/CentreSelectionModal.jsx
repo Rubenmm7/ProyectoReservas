@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/http';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
@@ -77,7 +78,7 @@ const CentreSelectionModal = ({ open, user, refreshCurrentUser }) => {
       setLoading(true);
       setError('');
       try {
-        const response = await fetch('/api/dashboard/centres');
+        const response = await apiFetch('/api/dashboard/centres');
         const data = await response.json().catch(() => []);
 
         if (!response.ok) {
@@ -128,7 +129,7 @@ const CentreSelectionModal = ({ open, user, refreshCurrentUser }) => {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/select-centre', {
+      const response = await apiFetch('/api/auth/select-centre', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ centre_id: selectedCentreId }),

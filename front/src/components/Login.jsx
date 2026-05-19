@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/http';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { persistSession } from '../utils/session';
@@ -194,14 +195,26 @@ function Login() {
     setLoading(true);
     setErrors({ username: '', password: '', general: '' });
 
+    let hasErrors = false;
+    const newErrors = { username: '', password: '', general: '' };
+
     if (!formData.username.trim()) {
-      setErrors((p) => ({ ...p, username: 'Introduce un nombre de usuario' }));
+      newErrors.username = 'Introduce un nombre de usuario';
+      hasErrors = true;
+    }
+    if (!formData.password.trim()) {
+      newErrors.password = 'La contraseña no puede estar vacía';
+      hasErrors = true;
+    }
+
+    if (hasErrors) {
+      setErrors(newErrors);
       setLoading(false);
       return;
     }
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -215,15 +228,10 @@ function Login() {
         return;
       }
 
-      const errorMsg = data.error || '';
-      if (errorMsg.includes('Usuario')) {
-        setErrors({ username: errorMsg, password: '', general: '' });
-      } else if (!formData.password.trim()) {
-        setErrors({ username: '', password: 'La contraseña no puede estar vacía', general: '' });
-      } else if (errorMsg.includes('Contraseña')) {
-        setErrors({ username: '', password: 'La contraseña es incorrecta', general: '' });
+      if (response.status === 401 || response.status === 403 || response.status === 404) {
+        setErrors({ username: '', password: '', general: 'Usuario o contraseña incorrectos' });
       } else {
-        setErrors({ username: '', password: '', general: errorMsg });
+        setErrors({ username: '', password: '', general: data.error || 'Error al iniciar sesión' });
       }
     } catch {
       setErrors({ username: '', password: '', general: 'Error de conexión con el servidor' });

@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/http';
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
@@ -223,7 +224,7 @@ const ActiveReservationCard = ({
     const fetchVehicle = async () => {
       if (reservation?.vehicle_id) {
         try {
-          const res = await fetch(`/api/dashboard/vehicles`);
+          const res = await apiFetch(`/api/dashboard/vehicles`);
           if (res.ok) {
             const vehicles = await res.json();
             const found = vehicles.find(v => String(v.id) === String(reservation.vehicle_id));
@@ -577,7 +578,7 @@ const HomeView = ({
 
     setMailTestLoading(true);
     try {
-      const response = await fetch('/api/dashboard/mailing/test', {
+      const response = await apiFetch('/api/dashboard/mailing/test', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1305,7 +1306,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const updateReservationStatus = async (reservation, status) => {
     if (!reservation?.id) return false;
 
-    const response = await fetch(`/api/dashboard/reservations/${reservation.id}`, {
+    const response = await apiFetch(`/api/dashboard/reservations/${reservation.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
@@ -1347,7 +1348,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     try {
       // Estadísticas solo para admin/supervisor
       if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
-        const statsRes = await fetch('/api/dashboard/stats');
+        const statsRes = await apiFetch('/api/dashboard/stats');
         if (statsRes.ok) {
           const newStats = await statsRes.json();
           setStats(prev => ({ ...prev, ...newStats }));
@@ -1357,7 +1358,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
       }
 
       // Reservas entra cualquier usuario, pero filtramos por rol
-      const resRes = await fetch('/api/dashboard/reservations');
+      const resRes = await apiFetch('/api/dashboard/reservations');
       if (resRes.ok) {
         let data = await resRes.json();
 
@@ -1383,7 +1384,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
         setReservations([]);
       }
 
-      const validationsRes = await fetch('/api/dashboard/validations');
+      const validationsRes = await apiFetch('/api/dashboard/validations');
       if (validationsRes.ok) {
         const validations = await validationsRes.json();
 
@@ -1421,7 +1422,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   // Función para recargar solo las reservas
   const reloadReservations = async () => {
     try {
-      const resRes = await fetch('/api/dashboard/reservations');
+      const resRes = await apiFetch('/api/dashboard/reservations');
       if (resRes.ok) {
         let data = await resRes.json();
         if (Array.isArray(data)) {
@@ -1606,7 +1607,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   ]));
 
   const confirmLogout = () => {
-    fetch('/api/auth/logout', { method: 'POST' })
+    apiFetch('/api/auth/logout', { method: 'POST' })
       .catch(() => null)
       .finally(() => {
         sessionStorage.clear();
@@ -1641,7 +1642,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     setDeliveringActiveReservation(true);
 
     try {
-      const response = await fetch(`/api/dashboard/reservations/${reservation.id}`, {
+      const response = await apiFetch(`/api/dashboard/reservations/${reservation.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'

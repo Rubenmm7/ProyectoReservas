@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/http';
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
@@ -107,7 +108,7 @@ export default function DeliveryReservationCard({
     const fetchVehicle = async () => {
       if (reservation?.vehicle_id) {
         try {
-          const res = await fetch('/api/dashboard/vehicles');
+          const res = await apiFetch('/api/dashboard/vehicles');
 
           if (res.ok) {
             const vehicles = await res.json();

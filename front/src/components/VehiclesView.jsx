@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/http';
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
@@ -287,7 +288,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
     const fetchCentres = async () => {
         try {
-            const response = await fetch('/api/dashboard/centres?page=1&limit=500');
+            const response = await apiFetch('/api/dashboard/centres?page=1&limit=500');
             const data = await response.json();
             const centresData = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
             setCentres(centresData);
@@ -315,7 +316,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             const trunkMinParam = trunkMinFilter !== '' ? `&trunkMin=${encodeURIComponent(trunkMinFilter)}` : '';
             const trunkMaxParam = trunkMaxFilter !== '' ? `&trunkMax=${encodeURIComponent(trunkMaxFilter)}` : '';
             const sortParam = sortConfig ? `&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}` : '';
-            const response = await fetch(`/api/dashboard/vehicles?page=${page}&limit=7${searchParam}${expiredParam}${optionsFilterParam}${brandParam}${vehicleTypeParam}${energyTypeParam}${fuelLevelParam}${seatsMinParam}${seatsMaxParam}${trunkMinParam}${trunkMaxParam}${sortParam}`);
+            const response = await apiFetch(`/api/dashboard/vehicles?page=${page}&limit=7${searchParam}${expiredParam}${optionsFilterParam}${brandParam}${vehicleTypeParam}${energyTypeParam}${fuelLevelParam}${seatsMinParam}${seatsMaxParam}${trunkMinParam}${trunkMaxParam}${sortParam}`);
             const data = await response.json();
             const nextVehicles = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
             if (!append && !searchTerm.trim() && optionsFilter !== 'all' && nextVehicles.length === 0) {
@@ -556,7 +557,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         };
 
         try {
-            const response = await fetch(url, {
+            const response = await apiFetch(url, {
                 method: isEditing ? 'PUT' : 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -590,7 +591,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         const id = deleteId;
         setDeleteId(null); // Close the confirmation modal
 
-        const deletePromise = fetch(`/api/dashboard/vehicles/${id}`, {
+        const deletePromise = apiFetch(`/api/dashboard/vehicles/${id}`, {
             method: 'DELETE'
         });
 
@@ -607,7 +608,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const fetchDocuments = async (vehicleId) => {
         setDocsLoading(true);
         try {
-            const response = await fetch(`/api/dashboard/vehicles/${vehicleId}/documents`);
+            const response = await apiFetch(`/api/dashboard/vehicles/${vehicleId}/documents`);
             const data = await response.json();
             const docs = Array.isArray(data) ? data : [];
             setDocuments(docs);
@@ -671,7 +672,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         setDeleteDocId(null);
 
         try {
-            const response = await fetch(`/api/dashboard/documents/${docId}`, {
+            const response = await apiFetch(`/api/dashboard/documents/${docId}`, {
                 method: 'DELETE'
             });
 
@@ -717,7 +718,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         formData.append('original_name', trimmedName);
 
         try {
-            const response = await fetch(`/api/dashboard/vehicles/${selectedVehicle.id}/documents`, {
+            const response = await apiFetch(`/api/dashboard/vehicles/${selectedVehicle.id}/documents`, {
                 method: 'POST',
                 body: formData
             });
@@ -775,7 +776,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         formDataToSend.append('original_name', trimmedName);
 
         try {
-            const response = await fetch(`/api/dashboard/documents/${editingDoc.id}`, {
+            const response = await apiFetch(`/api/dashboard/documents/${editingDoc.id}`, {
                 method: 'PUT',
                 body: formDataToSend
             });

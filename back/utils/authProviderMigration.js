@@ -27,7 +27,7 @@ const ensureUserAuthProviderColumn = async () => {
     );
 
     for (const user of legacyOauthUsers) {
-      // Each legacy Microsoft user gets a real bcrypt password so the DB never keeps a plain marker.
+      // A cada usuario heredado de Microsoft se le asigna una contraseña bcrypt real para que la base de datos nunca guarde un marcador en texto plano.
       const hashedPassword = await hashRandomPassword();
       await connection.query(
         "UPDATE users SET password = ?, auth_provider = 'microsoft365' WHERE id = ?",

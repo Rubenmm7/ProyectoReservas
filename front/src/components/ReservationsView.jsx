@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/http';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
@@ -575,7 +576,7 @@ export default function ReservationsView({
     const updateReservationStatus = async (reservation, status) => {
         if (!reservation?.id) return false;
 
-        const response = await fetch(`/api/dashboard/reservations/${reservation.id}`, {
+        const response = await apiFetch(`/api/dashboard/reservations/${reservation.id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
@@ -592,7 +593,7 @@ export default function ReservationsView({
     const updateVehicleStatus = async (vehicle, status) => {
         if (!vehicle?.id) return false;
 
-        const response = await fetch(`/api/dashboard/vehicles/${vehicle.id}`, {
+        const response = await apiFetch(`/api/dashboard/vehicles/${vehicle.id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
@@ -629,7 +630,7 @@ export default function ReservationsView({
 
     const syncVehicleStatusesFromReservations = async (reservationsList) => {
         try {
-            const response = await fetch('/api/dashboard/vehicles');
+            const response = await apiFetch('/api/dashboard/vehicles');
 
             if (!response.ok) return false;
 
@@ -672,7 +673,7 @@ export default function ReservationsView({
             const endParam = filterEndDate ? `&endDate=${encodeURIComponent(filterEndDate)}` : '';
             const statusParam = filterStatus ? `&statusFilter=${encodeURIComponent(filterStatus)}` : '';
             const sortParam = sortConfig ? `&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}` : '';
-            const response = await fetch(`/api/dashboard/reservations?page=${page}&limit=7${syncPart}${searchParam}${startParam}${endParam}${statusParam}${sortParam}`);
+            const response = await apiFetch(`/api/dashboard/reservations?page=${page}&limit=7${syncPart}${searchParam}${startParam}${endParam}${statusParam}${sortParam}`);
             if (response.ok) {
                 const data = await response.json();
                 const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
@@ -723,7 +724,7 @@ export default function ReservationsView({
 
     const fetchCentres = async () => {
         try {
-            const response = await fetch('/api/dashboard/centres');
+            const response = await apiFetch('/api/dashboard/centres');
 
             if (!response.ok) {
                 setCentresList([]);
@@ -773,8 +774,8 @@ export default function ReservationsView({
             // Si es admin/supervisor, necesitamos la lista de usuarios. El centro lo resuelve el flujo del modal.
             if (isAdminSupervisor) {
                 const [usersRes, vehiclesRes] = await Promise.all([
-                    fetch('/api/dashboard/users', { headers }),
-                    fetch(vehiclesUrl, { headers })
+                    apiFetch('/api/dashboard/users', { headers }),
+                    apiFetch(vehiclesUrl, { headers })
                 ]);
                 const usersData = usersRes.ok ? await usersRes.json() : [];
                 const vehiclesData = vehiclesRes.ok ? await vehiclesRes.json() : [];
@@ -783,7 +784,7 @@ export default function ReservationsView({
                 setVehiclesList(filterVehiclesByCentre(vehiclesData));
             }
             else {
-                const vehiclesRes = await fetch(vehiclesUrl, { headers });
+                const vehiclesRes = await apiFetch(vehiclesUrl, { headers });
                 const vehiclesData = vehiclesRes.ok ? await vehiclesRes.json() : [];
                 setUsersList([currentUser]);
                 setVehiclesList(filterVehiclesByCentre(vehiclesData));
@@ -990,7 +991,7 @@ export default function ReservationsView({
         if (!rejectModalReservation) return;
         setRejectLoading(true);
         try {
-            const response = await fetch(`/api/dashboard/reservations/${rejectModalReservation.id}`, {
+            const response = await apiFetch(`/api/dashboard/reservations/${rejectModalReservation.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1220,7 +1221,7 @@ export default function ReservationsView({
                 }
             }
 
-            const response = await fetch(url, {
+            const response = await apiFetch(url, {
                 method: isEditing ? 'PUT' : 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1272,7 +1273,7 @@ export default function ReservationsView({
             const reservationToDelete = reservations.find(r => r.id === id);
             const isFinalized = reservationToDelete && String(reservationToDelete.status).toLowerCase() === 'finalizada';
 
-            const res = await fetch(`/api/dashboard/reservations/${id}`, {
+            const res = await apiFetch(`/api/dashboard/reservations/${id}`, {
                 method: 'DELETE'
             });
 

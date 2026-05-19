@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/http';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -305,21 +306,28 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
 
   const parseDetails = (raw) => {
     if (raw === null || raw === undefined) return null;
+    let parsed;
     if (typeof raw === 'string') {
       try {
-        return JSON.parse(raw);
+        parsed = JSON.parse(raw);
       } catch {
-        return raw;
+        return null;
       }
+    } else {
+      parsed = raw;
     }
-    return raw;
+
+    if (typeof parsed !== 'object' || parsed === null) {
+      return null;
+    }
+    return parsed;
   };
 
   const formatDateDisplay = (value) => {
     if (value === null || value === undefined) return '-';
     if (typeof value === 'boolean') return value ? 'Si' : 'No';
     if (typeof value === 'string') {
-      // Check if it looks like a standard date string (ISO 8601 or common SQL formats like YYYY-MM-DD)
+      // Verificar si parece una cadena de fecha estándar (ISO 8601 o formatos SQL comunes como AAAA-MM-DD)
       const isDateString = /^\d{4}-\d{2}-\d{2}(T|\s)?/.test(value);
       if (isDateString) {
         const date = new Date(value);
@@ -599,7 +607,7 @@ export default function AuditLogView() {
 
     try {
       setLoading(true);
-      const response = await fetch(`/api/audit/logs?${buildQueryString(page)}`);
+      const response = await apiFetch(`/api/audit/logs?${buildQueryString(page)}`);
       if (!response.ok) {
         throw new Error('Error al cargar auditoría');
       }
@@ -745,7 +753,7 @@ export default function AuditLogView() {
       params.set('limit', totalRecords > 0 ? String(totalRecords) : '10000');
       params.set('page', '1');
 
-      const response = await fetch(`/api/audit/logs?${params.toString()}`);
+      const response = await apiFetch(`/api/audit/logs?${params.toString()}`);
       if (!response.ok) throw new Error('Error al cargar datos para exportar');
       
       const data = await response.json();
