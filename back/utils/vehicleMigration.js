@@ -24,19 +24,7 @@ const VEHICLE_COLUMNS = [
   {
     name: 'fuel_level',
     definition: "ENUM('vacio', 'medio-vacio', 'medio', 'medio-lleno', 'lleno') NOT NULL DEFAULT 'medio' AFTER energy_type",
-  },
-  {
-    name: 'location',
-    definition: 'VARCHAR(120) DEFAULT NULL AFTER fuel_level',
-  },
-  {
-    name: 'extras',
-    definition: 'TEXT DEFAULT NULL AFTER location',
-  },
-  {
-    name: 'cost_centre',
-    definition: 'VARCHAR(80) DEFAULT NULL AFTER extras',
-  },
+  }
 ];
 
 const KNOWN_BRANDS = [

@@ -12,6 +12,7 @@ const { getIO } = require('../utils/socketManager');
 const { parseMySqlDateTime, formatMySqlDateTime } = require('../utils/dateTime');
 const { syncCentresFromUnifica } = require('../utils/centresSync');
 const { syncReservationStatusesByTime } = require('../utils/reservationStatusSync');
+const { createReservationEvent, updateReservationEvent, deleteReservationEvent } = require('../utils/graphCalendarSync');
 
 const normalizeMySqlDateTime = (value) => {
   return formatMySqlDateTime(value);
@@ -809,6 +810,29 @@ exports.createReservation = async (req, res) => {
       ? formatVehicleLabel(vehicleInfoRows[0])
       : `ID: ${vehicle_id}`;
 
+    // Crear evento en Outlook del creador (solo usuarios MS365, no bloquea si falla)
+    try {
+      const [[userRow]] = await connection.query(
+        'SELECT username, auth_provider, outlook_sync_enabled FROM users WHERE id = ?',
+        [finalUserId]
+      );
+      if (userRow?.auth_provider === 'microsoft365' && userRow?.outlook_sync_enabled && vehicleInfoRows.length > 0) {
+        const v = vehicleInfoRows[0];
+        const outlookEventId = await createReservationEvent(userRow.username, {
+          reservationId: result.insertId,
+          brand: v.brand,
+          model: v.model,
+          licensePlate: v.license_plate,
+          startTime: normalizedStartTime,
+          endTime: normalizedEndTime,
+          status: finalStatus,
+        });
+        await connection.query('UPDATE reservations SET outlook_event_id = ? WHERE id = ?', [outlookEventId, result.insertId]);
+      }
+    } catch (outlookError) {
+      console.error('[OUTLOOK] Error creando evento de calendario:', outlookError.message);
+    }
+
     // Registrar auditoría de creación de reserva
     try {
       await auditLogger.logAction(req.user.id, 'CREATE', 'reservations', result.insertId, req.user.role, {
@@ -906,7 +930,7 @@ exports.updateReservation = async (req, res) => {
     } = req.body;
 
     const [original] = await connection.query(
-      'SELECT user_id, vehicle_id, start_time, end_time, status FROM reservations WHERE id = ?',
+      'SELECT user_id, vehicle_id, start_time, end_time, status, outlook_event_id FROM reservations WHERE id = ?',
       [id]
     );
     if (original.length === 0) {
@@ -1171,6 +1195,41 @@ exports.updateReservation = async (req, res) => {
 
     await connection.commit();
 
+    // Actualizar o eliminar evento Outlook del creador (solo MS365, no bloquea si falla)
+    try {
+      const [[userRow]] = await connection.query(
+        'SELECT username, auth_provider, outlook_sync_enabled FROM users WHERE id = ?',
+        [finalUserId]
+      );
+      if (userRow?.auth_provider === 'microsoft365' && userRow?.outlook_sync_enabled) {
+        const outlookEventId = original[0].outlook_event_id;
+        const [[vRow]] = await connection.query(
+          'SELECT brand, model, license_plate FROM vehicles WHERE id = ?',
+          [finalVehicleId]
+        );
+        if (vRow) {
+          const eventData = {
+            reservationId: id,
+            brand: vRow.brand,
+            model: vRow.model,
+            licensePlate: vRow.license_plate,
+            startTime: normalizedStartTime,
+            endTime: normalizedEndTime,
+            status: finalStatus,
+          };
+          const closedStatuses = ['rechazada', 'finalizada'];
+          if (closedStatuses.includes(String(finalStatus).toLowerCase()) && outlookEventId) {
+            await deleteReservationEvent(outlookEventId, userRow.username);
+            await connection.query('UPDATE reservations SET outlook_event_id = NULL WHERE id = ?', [id]);
+          } else if (outlookEventId) {
+            await updateReservationEvent(outlookEventId, userRow.username, eventData);
+          }
+        }
+      }
+    } catch (outlookError) {
+      console.error('[OUTLOOK] Error actualizando evento de calendario:', outlookError.message);
+    }
+
     try {
       await auditLogger.logAction(req.user.id, 'UPDATE', 'reservations', id, req.user.role, {
         previous: previousReservation,
@@ -1255,8 +1314,11 @@ exports.deleteReservation = async (req, res) => {
         r.status,
         r.start_time,
         r.end_time,
+        r.outlook_event_id,
         v.centre_id,
         u.username,
+        u.auth_provider,
+        u.outlook_sync_enabled,
         v.brand,
         v.license_plate,
         v.model,
@@ -1296,6 +1358,15 @@ exports.deleteReservation = async (req, res) => {
     }
 
     await connection.commit();
+
+    // Eliminar evento Outlook del creador (solo MS365, no bloquea si falla)
+    try {
+      if (original[0].outlook_event_id && original[0].auth_provider === 'microsoft365' && original[0].outlook_sync_enabled) {
+        await deleteReservationEvent(original[0].outlook_event_id, original[0].username);
+      }
+    } catch (outlookError) {
+      console.error('[OUTLOOK] Error eliminando evento de calendario:', outlookError.message);
+    }
 
     // Registrar auditoría de eliminación de reserva
     try {
@@ -1361,8 +1432,6 @@ exports.getVehicles = async (req, res) => {
       trunk_capacity_l: 'v.trunk_capacity_l',
       energy_type: 'v.energy_type',
       fuel_level: 'v.fuel_level',
-      location: 'v.location',
-      cost_centre: 'v.cost_centre',
       status: 'v.status',
       kilometers: 'v.kilometers',
       centre_name: 'c.nombre',
@@ -1376,9 +1445,6 @@ exports.getVehicles = async (req, res) => {
     const vehicleType = normalizeNullableText(req.query.vehicleType);
     const energyType = normalizeNullableText(req.query.energyType);
     const fuelLevel = normalizeNullableText(req.query.fuelLevel);
-    const location = normalizeNullableText(req.query.location);
-    const costCentre = normalizeNullableText(req.query.costCentre);
-    const extras = normalizeNullableText(req.query.extras);
     const seatsMin = normalizeOptionalInteger(req.query.seatsMin);
     const seatsMax = normalizeOptionalInteger(req.query.seatsMax);
     const trunkMin = normalizeOptionalInteger(req.query.trunkMin);
@@ -1402,8 +1468,8 @@ exports.getVehicles = async (req, res) => {
     }
 
     if (search) {
-      whereClauses.push('(v.license_plate LIKE ? OR v.brand LIKE ? OR v.model LIKE ? OR v.vehicle_type LIKE ? OR v.location LIKE ? OR v.cost_centre LIKE ? OR v.extras LIKE ? OR c.nombre LIKE ?)');
-      params.push(search, search, search, search, search, search, search, search);
+      whereClauses.push('(v.license_plate LIKE ? OR v.brand LIKE ? OR v.model LIKE ? OR v.vehicle_type LIKE ? OR c.nombre LIKE ?)');
+      params.push(search, search, search, search, search);
     }
 
     if (brand) {
@@ -1424,21 +1490,6 @@ exports.getVehicles = async (req, res) => {
     if (fuelLevel) {
       whereClauses.push('v.fuel_level = ?');
       params.push(fuelLevel);
-    }
-
-    if (location) {
-      whereClauses.push('v.location LIKE ?');
-      params.push(`%${location}%`);
-    }
-
-    if (costCentre) {
-      whereClauses.push('v.cost_centre LIKE ?');
-      params.push(`%${costCentre}%`);
-    }
-
-    if (extras) {
-      whereClauses.push('v.extras LIKE ?');
-      params.push(`%${extras}%`);
     }
 
     if (seatsMin !== undefined) {
@@ -1527,9 +1578,6 @@ exports.createVehicle = async (req, res) => {
       trunk_capacity_l,
       energy_type,
       fuel_level,
-      location,
-      extras,
-      cost_centre,
       status,
       kilometers,
       centre_id,
@@ -1542,9 +1590,6 @@ exports.createVehicle = async (req, res) => {
     const finalTrunkCapacity = normalizeOptionalInteger(trunk_capacity_l);
     const finalEnergyType = normalizeNullableText(energy_type) || 'combustion';
     const finalFuelLevel = normalizeNullableText(fuel_level) || 'medio';
-    const finalLocation = normalizeNullableText(location);
-    const finalExtras = normalizeNullableText(extras);
-    const finalCostCentre = normalizeNullableText(cost_centre);
 
     if (!license_plate || !finalBrand || !finalModel) {
       return res.status(400).json({ error: 'La matrícula, la marca y el modelo son obligatorios' });
@@ -1560,14 +1605,6 @@ exports.createVehicle = async (req, res) => {
 
     if (finalVehicleType.length > 50) {
       return res.status(400).json({ error: 'El tipo de vehículo no puede exceder 50 caracteres' });
-    }
-
-    if (finalLocation && finalLocation.length > 120) {
-      return res.status(400).json({ error: 'La ubicación no puede exceder 120 caracteres' });
-    }
-
-    if (finalCostCentre && finalCostCentre.length > 80) {
-      return res.status(400).json({ error: 'El centro de coste no puede exceder 80 caracteres' });
     }
 
     const kmValue = kilometers !== undefined ? parseInt(kilometers) : 0;
@@ -1607,9 +1644,9 @@ exports.createVehicle = async (req, res) => {
     const [result] = await db.query(
       `INSERT INTO vehicles (
         license_plate, brand, model, vehicle_type, seats, trunk_capacity_l,
-        energy_type, fuel_level, location, extras, cost_centre,
+        energy_type, fuel_level,
         status, kilometers, centre_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         license_plate,
         finalBrand,
@@ -1619,12 +1656,9 @@ exports.createVehicle = async (req, res) => {
         finalTrunkCapacity ?? null,
         finalEnergyType,
         finalFuelLevel,
-        finalLocation,
-        finalExtras,
-        finalCostCentre,
         validatedStatus.status,
         kmValue,
-        centre_id || null
+        centre_id || null,
       ]
     );
 
@@ -1637,9 +1671,6 @@ exports.createVehicle = async (req, res) => {
       trunk_capacity_l: finalTrunkCapacity ?? null,
       energy_type: finalEnergyType,
       fuel_level: finalFuelLevel,
-      location: finalLocation,
-      extras: finalExtras,
-      cost_centre: finalCostCentre,
       status: validatedStatus.status,
       kilometers: kmValue
     });
@@ -1665,9 +1696,6 @@ exports.updateVehicle = async (req, res) => {
       trunk_capacity_l,
       energy_type,
       fuel_level,
-      location,
-      extras,
-      cost_centre,
       status,
       kilometers,
       centre_id,
@@ -1684,9 +1712,6 @@ exports.updateVehicle = async (req, res) => {
         trunk_capacity_l !== undefined ||
         energy_type !== undefined ||
         fuel_level !== undefined ||
-        location !== undefined ||
-        extras !== undefined ||
-        cost_centre !== undefined ||
         status !== undefined ||
         kilometers !== undefined
       ) {
@@ -1711,9 +1736,6 @@ exports.updateVehicle = async (req, res) => {
     const finalTrunkCapacityRaw = trunk_capacity_l !== undefined ? normalizeOptionalInteger(trunk_capacity_l) : normalizeOptionalInteger(current.trunk_capacity_l);
     const finalEnergyType = energy_type !== undefined ? normalizeNullableText(energy_type) : normalizeNullableText(current.energy_type) || 'combustion';
     const finalFuelLevel = fuel_level !== undefined ? normalizeNullableText(fuel_level) : normalizeNullableText(current.fuel_level) || 'medio';
-    const finalLocation = location !== undefined ? normalizeNullableText(location) : normalizeNullableText(current.location);
-    const finalExtras = extras !== undefined ? normalizeNullableText(extras) : normalizeNullableText(current.extras);
-    const finalCostCentre = cost_centre !== undefined ? normalizeNullableText(cost_centre) : normalizeNullableText(current.cost_centre);
     const finalLicensePlate = license_plate ? normalizePlate(license_plate) : current.license_plate;
     const finalStatus = status !== undefined ? validateVehicleStatus(status) : { ok: true, status: normalizeVehicleStatusInput(current.status) };
     if (!finalStatus.ok) {
@@ -1742,16 +1764,6 @@ exports.updateVehicle = async (req, res) => {
     if (finalVehicleType && finalVehicleType.length > 50) {
       await connection.rollback();
       return res.status(400).json({ error: 'El tipo de vehículo no puede exceder 50 caracteres' });
-    }
-
-    if (finalLocation && finalLocation.length > 120) {
-      await connection.rollback();
-      return res.status(400).json({ error: 'La ubicación no puede exceder 120 caracteres' });
-    }
-
-    if (finalCostCentre && finalCostCentre.length > 80) {
-      await connection.rollback();
-      return res.status(400).json({ error: 'El centro de coste no puede exceder 80 caracteres' });
     }
 
     if (isNaN(finalKilometers) || finalKilometers < 0 || finalKilometers > 15000000) {
@@ -1793,9 +1805,6 @@ exports.updateVehicle = async (req, res) => {
         trunk_capacity_l = ?,
         energy_type = ?,
         fuel_level = ?,
-        location = ?,
-        extras = ?,
-        cost_centre = ?,
         status = ?,
         kilometers = ?,
         centre_id = ?
@@ -1809,9 +1818,6 @@ exports.updateVehicle = async (req, res) => {
         finalTrunkCapacityRaw ?? null,
         finalEnergyType,
         finalFuelLevel,
-        finalLocation,
-        finalExtras,
-        finalCostCentre,
         finalStatus.status,
         finalKilometers,
         finalCentreId,
@@ -1833,9 +1839,6 @@ exports.updateVehicle = async (req, res) => {
       trunk_capacity_l: current.trunk_capacity_l,
       energy_type: current.energy_type,
       fuel_level: current.fuel_level,
-      location: current.location,
-      extras: current.extras,
-      cost_centre: current.cost_centre,
       status: current.status,
       kilometers: current.kilometers
     };
@@ -1849,9 +1852,6 @@ exports.updateVehicle = async (req, res) => {
       trunk_capacity_l: finalTrunkCapacityRaw ?? null,
       energy_type: finalEnergyType,
       fuel_level: finalFuelLevel,
-      location: finalLocation,
-      extras: finalExtras,
-      cost_centre: finalCostCentre,
       status: finalStatus.status,
       kilometers: finalKilometers
     };
@@ -1865,9 +1865,6 @@ exports.updateVehicle = async (req, res) => {
       trunk_capacity_l: { from: vehiclePrevious.trunk_capacity_l, to: vehicleCurrent.trunk_capacity_l },
       energy_type: { from: vehiclePrevious.energy_type, to: vehicleCurrent.energy_type },
       fuel_level: { from: vehiclePrevious.fuel_level, to: vehicleCurrent.fuel_level },
-      location: { from: vehiclePrevious.location, to: vehicleCurrent.location },
-      extras: { from: vehiclePrevious.extras, to: vehicleCurrent.extras },
-      cost_centre: { from: vehiclePrevious.cost_centre, to: vehicleCurrent.cost_centre },
       status: { from: vehiclePrevious.status, to: vehicleCurrent.status },
       kilometers: { from: vehiclePrevious.kilometers, to: vehicleCurrent.kilometers }
     };
@@ -2909,4 +2906,45 @@ exports.resetWorkshopKilometerCounter = async (req, res) => {
   }
 };
 
+exports.outlookDiagnostic = async (req, res) => {
+  const { getAppOnlyToken } = require('../utils/graphApiClient');
+  const axios = require('axios');
+  const results = {};
+
+  // 1. Obtener token app-only
+  let token;
+  try {
+    token = await getAppOnlyToken();
+    results.token = 'OK';
+  } catch (err) {
+    results.token = `ERROR: ${err.message}`;
+    return res.status(500).json(results);
+  }
+
+  // 2. Verificar permisos de la app (listar calendarios de un usuario MS365)
+  const [[msUser]] = await db.query(
+    'SELECT username FROM users WHERE auth_provider = ? AND outlook_sync_enabled = 1 AND deleted_at IS NULL LIMIT 1',
+    ['microsoft365']
+  );
+
+  if (!msUser) {
+    results.ms365_user = 'No hay usuarios MS365 con outlook_sync_enabled=1';
+    return res.json(results);
+  }
+
+  results.test_user = msUser.username;
+
+  try {
+    const response = await axios.get(
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(msUser.username)}/calendars`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    results.calendar_access = `OK — ${response.data.value?.length ?? 0} calendarios encontrados`;
+  } catch (err) {
+    const msErr = err.response?.data?.error;
+    results.calendar_access = `ERROR HTTP ${err.response?.status}: ${msErr?.code} — ${msErr?.message ?? err.message}`;
+  }
+
+  res.json(results);
+};
 

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(255) NOT NULL,
     auth_provider ENUM('local', 'microsoft365') NOT NULL DEFAULT 'local',
     role ENUM('admin', 'empleado', 'supervisor', 'gestor') DEFAULT 'empleado',
+    outlook_sync_enabled TINYINT(1) NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL DEFAULT NULL
 );
@@ -58,12 +59,14 @@ CREATE TABLE IF NOT EXISTS reservations (
     motivo_rechazo TEXT NULL DEFAULT NULL,
     finalization_mail_sent_at DATETIME NULL DEFAULT NULL,
     delivery_reminder_sent_at DATETIME NULL DEFAULT NULL,
+    outlook_event_id VARCHAR(512) NULL DEFAULT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE,
     INDEX idx_user_id (user_id),
     INDEX idx_vehicle_id (vehicle_id),
     INDEX idx_status_reservations (status),
-    INDEX idx_start_end_time (start_time, end_time)
+    INDEX idx_start_end_time (start_time, end_time),
+    INDEX idx_outlook_event_id (outlook_event_id)
 );
 
 CREATE TABLE IF NOT EXISTS documents (

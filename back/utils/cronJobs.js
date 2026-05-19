@@ -122,5 +122,5 @@ module.exports = {
     initializeAllCronJobs,
     initializeSyncCentrosCron,
     initializeReservationStatusCron,
-    initializeDeliveryReminderCron
+    initializeDeliveryReminderCron,
 };

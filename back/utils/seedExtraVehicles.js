@@ -26,8 +26,8 @@ const seedExtraVehicles = async () => {
       await connection.query(
         `INSERT INTO vehicles (
           id, license_plate, brand, model, vehicle_type, seats, trunk_capacity_l,
-          energy_type, fuel_level, location, extras, cost_centre, status, kilometers
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          energy_type, fuel_level, status, kilometers
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         vehicle
       );
     }

@@ -33,6 +33,7 @@ router.post('/reservations', validate(reservationSchema), dashboardController.cr
 router.put('/reservations/:id', validate(idParamSchema, 'params'), validate(reservationUpdateSchema), dashboardController.updateReservation);
 router.delete('/reservations/:id', validate(idParamSchema, 'params'), dashboardController.deleteReservation);
 router.post('/mailing/test', checkRole(['admin']), mailingController.sendTestMail);
+router.get('/outlook/diagnostic', checkRole(['admin']), dashboardController.outlookDiagnostic);
 
 router.get('/vehicles', checkRole(['admin', 'supervisor', 'empleado', 'gestor']), dashboardController.getVehicles);
 router.post('/vehicles', checkRole(['admin', 'supervisor']), validate(vehicleSchema), dashboardController.createVehicle);

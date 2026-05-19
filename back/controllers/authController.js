@@ -24,7 +24,7 @@ const createOAuthPasswordHash = async () => {
 
 const getCurrentUserWithCentres = async (userId) => {
     const [users] = await db.query(
-        'SELECT id, username, role, password, auth_provider FROM users WHERE id = ? AND deleted_at IS NULL',
+        'SELECT id, username, role, password, auth_provider, outlook_sync_enabled FROM users WHERE id = ? AND deleted_at IS NULL',
         [userId]
     );
 
@@ -51,6 +51,7 @@ const getCurrentUserWithCentres = async (userId) => {
         centre_ids: centreIds,
         centres: centreRows,
         requires_centre_selection: requiresCentreSelection,
+        outlook_sync_enabled: !!user.outlook_sync_enabled,
     };
 };
 
@@ -178,6 +179,9 @@ exports.externalCallback = async (req, res) => {
                 });
             }
         }
+
+        // El admin ha concedido Calendars.ReadWrite como Application permission → todos los MS365 habilitados
+        await db.query('UPDATE users SET outlook_sync_enabled = 1 WHERE id = ?', [user.id]);
 
         const userData = await getCurrentUserWithCentres(user.id);
         if (!userData) {

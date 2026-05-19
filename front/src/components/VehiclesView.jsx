@@ -105,7 +105,6 @@ const INITIAL_FORM_STATE = {
     trunk_capacity_l: '',
     energy_type: 'combustion',
     fuel_level: 'medio',
-    extras: '',
     status: 'disponible',
     kilometers: 0,
     centre_id: '',
@@ -503,10 +502,9 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                 trunk_capacity_l: vehicle.trunk_capacity_l ?? '',
                 energy_type: vehicle.energy_type || 'combustion',
                 fuel_level: vehicle.fuel_level || 'medio',
-                extras: vehicle.extras || '',
                 status: vehicle.status,
                 kilometers: vehicle.kilometers,
-                centre_id: vehicle.centre_id || ''
+                centre_id: vehicle.centre_id || '',
             });
             setEditingId(vehicle.id);
         } else {
@@ -554,7 +552,6 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             trunk_capacity_l: formData.trunk_capacity_l === '' ? undefined : Number(formData.trunk_capacity_l),
             energy_type: formData.energy_type,
             fuel_level: formData.fuel_level,
-            extras: formData.extras.trim() || undefined,
             centre_id: formData.centre_id === '' ? undefined : formData.centre_id,
         };
 
@@ -1549,18 +1546,6 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Extras</label>
-                                    <textarea
-                                        rows="3"
-                                        maxLength="2000"
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all resize-none"
-                                        placeholder="Bluetooth, Android Auto, cámara trasera..."
-                                        value={formData.extras}
-                                        onChange={e => setFormData({ ...formData, extras: e.target.value })}
-                                    />
-                                </div>
-
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
@@ -1698,6 +1683,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                     </div>
                                     <input type="hidden" required value={formData.centre_id} />
                                 </div>
+
                             </div>
 
                             <div className="select-none p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
