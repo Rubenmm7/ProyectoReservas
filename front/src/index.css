@@ -128,6 +128,12 @@ body {
   width: 6px;
 }
 
+.custom-scrollbar,
+.form-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
 .custom-scrollbar::-webkit-scrollbar-track,
 .form-scrollbar::-webkit-scrollbar-track {
   background: transparent;
@@ -135,18 +141,23 @@ body {
 
 .custom-scrollbar::-webkit-scrollbar-thumb,
 .form-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--scrollbar-thumb);
   border-radius: 10px;
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb,
 .dark .form-scrollbar::-webkit-scrollbar-thumb {
-  background: #475569;
+  background: var(--scrollbar-thumb);
+}
+
+.dark .custom-scrollbar,
+.dark .form-scrollbar {
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover,
 .form-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--scrollbar-thumb-hover);
 }
 
 .no-spin::-webkit-outer-spin-button,
@@ -176,6 +187,8 @@ body {
 :root {
   --magenta: #E5007D;
   --magenta-dark: #E5007D;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
 
   /* ── Light Mode Colors ── */
   /* Fondos principales */
@@ -202,6 +215,8 @@ body {
 
 .dark {
   color-scheme: dark;
+  --scrollbar-thumb: #475569;
+  --scrollbar-thumb-hover: #64748b;
 
   /* ── Dark Mode Colors ── */
   /* Fondos principales */

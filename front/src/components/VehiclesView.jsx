@@ -147,7 +147,7 @@ const getVehicleDisplayLabel = (vehicle, includePlate = true) => {
     const brand = String(vehicle?.brand ?? '').trim();
     const model = String(vehicle?.model ?? '').trim();
     const plate = String(vehicle?.license_plate ?? '').trim();
-    const name = [brand, model].filter(Boolean).join(' / ') || model || brand || 'Vehículo';
+    const name = [brand, model].filter(Boolean).join(' ') || model || brand || 'Vehículo';
     return includePlate && plate ? `${name} (${plate})` : name;
 };
 
@@ -198,7 +198,7 @@ const VehicleFilterSelect = ({ value, onChange, options, placeholder }) => {
                         leaveFrom="opacity-100 translate-y-0"
                         leaveTo="opacity-0 translate-y-1"
                     >
-                        <Listbox.Options className={`absolute z-50 mt-2 max-h-72 min-w-full w-max max-w-[260px] overflow-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-2 shadow-2xl ring-1 ring-black/5 focus:outline-none ${alignRight ? 'right-0' : 'left-0'}`}>
+                        <Listbox.Options className={`absolute z-50 mt-2 max-h-72 min-w-full w-max max-w-[260px] overflow-auto custom-scrollbar rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-2 shadow-2xl ring-1 ring-black/5 focus:outline-none ${alignRight ? 'right-0' : 'left-0'}`}>
                             {options.map((option) => (
                                 <Listbox.Option
                                     key={option.value}
@@ -252,7 +252,7 @@ const FormSelect = ({ value, onChange, options, placeholder, searchable = false 
                         leaveFrom="opacity-100"
                         leaveTo="opacity-0"
                     >
-                        <Listbox.Options className="absolute z-[60] mt-1 w-full max-h-64 overflow-auto rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-2xl focus:outline-none py-1">
+                        <Listbox.Options className="absolute z-[60] mt-1 w-full max-h-64 overflow-auto custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-2xl focus:outline-none py-1">
                             {searchable && (
                                 <div className="px-2 pt-2 pb-1 sticky top-0 bg-white dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600">
                                     <input
@@ -1179,14 +1179,14 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                         placeholder="Combustible / batería"
                         options={[{ value: '', label: 'Combustible / batería' }, ...FUEL_LEVEL_OPTIONS]}
                     />
-                <div className="flex flex-1 flex-wrap items-center gap-1.5">
+                <div className="grid grid-cols-2 gap-1.5 w-full sm:w-[320px] lg:w-[360px]">
                     <input
                         type="number"
                         min="1"
                         value={seatsMinFilter}
                         onChange={(e) => setSeatsMinFilter(e.target.value)}
                         placeholder="Plazas mín."
-                        className="flex-1 min-w-[80px] px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none"
+                        className="w-full min-w-0 px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none"
                     />
                     <input
                         type="number"
@@ -1194,7 +1194,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                         value={seatsMaxFilter}
                         onChange={(e) => setSeatsMaxFilter(e.target.value)}
                         placeholder="Plazas máx."
-                        className="flex-1 min-w-[80px] px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none"
+                        className="w-full min-w-0 px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none"
                     />
                     <input
                         type="number"
@@ -1202,7 +1202,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                         value={trunkMinFilter}
                         onChange={(e) => setTrunkMinFilter(e.target.value)}
                         placeholder="Maletero mín."
-                        className="flex-1 min-w-[90px] px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none"
+                        className="w-full min-w-0 px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none"
                     />
                     <input
                         type="number"
@@ -1210,7 +1210,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                         value={trunkMaxFilter}
                         onChange={(e) => setTrunkMaxFilter(e.target.value)}
                         placeholder="Maletero máx."
-                        className="flex-1 min-w-[90px] px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none"
+                        className="w-full min-w-0 px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none"
                     />
                 </div>
             </div>

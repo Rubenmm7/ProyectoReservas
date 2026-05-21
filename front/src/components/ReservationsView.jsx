@@ -50,18 +50,38 @@ const STATUS_ICON = {
     'pendiente': { color: 'text-amber-600 dark:text-amber-400',  bg: 'bg-amber-100 dark:bg-amber-500/20',  svg: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
 };
 
-const formatVehicleLabel = (vehicle = {}, includePlate = true) => {
-    const brand = String(vehicle?.brand ?? '').trim();
+const formatVehicleName = (vehicle = {}) => {
+    const brand = String(vehicle?.brand ?? vehicle?.marca ?? '').trim();
     const model = String(vehicle?.model ?? '').trim();
+    return [brand, model].filter(Boolean).join(' ') || model || brand || 'Vehículo';
+};
+
+const formatVehicleLabel = (vehicle = {}, includePlate = true) => {
     const plate = String(vehicle?.license_plate ?? '').trim();
-    const name = [brand, model].filter(Boolean).join(' / ') || model || brand || 'Vehículo';
+    const name = formatVehicleName(vehicle);
     return includePlate && plate ? `${name} (${plate})` : name;
 };
 
+const formatVehiclePlate = (vehicle = {}) => String(vehicle?.license_plate ?? '').trim();
 
 
 
-// ── CUSTOM DATE TIME PICKER COMPONENT ──
+
+// CUSTOM DATE TIME PICKER COMPONENT
+const formatDetailValue = (value) => {
+    if (value === null || value === undefined || value === '') return '—';
+    if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+    return String(value);
+};
+
+const formatReadableValue = (value) => {
+    const text = String(value ?? '').trim();
+    if (!text) return '—';
+    return text
+        .replaceAll('-', ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled = false }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [isMonthYearPickerOpen, setIsMonthYearPickerOpen] = useState(false);
@@ -98,6 +118,8 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
                 width: `${panelWidth}px`,
                 maxHeight: 'calc(100vh - 32px)',
                 overflow: 'auto',
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'var(--scrollbar-thumb, #cbd5e1) transparent',
                 top: placeAbove ? 'auto' : `${Math.min(rect.bottom + gap, window.innerHeight - 16)}px`,
                 bottom: placeAbove ? `${Math.max(window.innerHeight - rect.top + gap, 16)}px` : 'auto',
                 left: align === 'right' ? 'auto' : `${Math.max(16, Math.min(rect.left, window.innerWidth - panelWidth - 16))}px`,
@@ -286,12 +308,18 @@ export default function ReservationsView({
     const [deliveryReservation, setDeliveryReservation] = useState(null);
     const [deliverySubmitting, setDeliverySubmitting] = useState(false);
     const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
+    const [isReservationDetailsOpen, setIsReservationDetailsOpen] = useState(false);
+    const [reservationDetails, setReservationDetails] = useState(null);
+    const [reservationDetailsVehicle, setReservationDetailsVehicle] = useState(null);
+    const [reservationDetailsLoading, setReservationDetailsLoading] = useState(false);
+    const [reservationDetailsError, setReservationDetailsError] = useState('');
 
     // Modal de rechazo con motivo
     const [rejectModalReservation, setRejectModalReservation] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
     const [rejectLoading, setRejectLoading] = useState(false);
     const [viewingReason, setViewingReason] = useState(null);
+    const reservationDetailsFetchRef = useRef(0);
     const renderToBody = (node) => (
         typeof document !== 'undefined' ? createPortal(node, document.body) : null
     );
@@ -326,7 +354,7 @@ export default function ReservationsView({
 
     // Bloquear scroll de fondo (incluyendo pull-down en móvil) al abrir modal
     useEffect(() => {
-        const shouldLock = isModalOpen || deleteId || isDeliveryModalOpen;
+        const shouldLock = isModalOpen || deleteId || isDeliveryModalOpen || isReservationDetailsOpen;
         if (!shouldLock || typeof window === 'undefined') return;
 
         const body = document.body;
@@ -472,7 +500,9 @@ export default function ReservationsView({
     const paginatedReservations = isMobile
         ? sortedReservations.slice(0, visibleItems)
         : sortedReservations;
-    const shouldStretchRows = !isMobile && paginatedReservations.length === itemsPerPage;
+    // Solo ajustamos la altura de filas cuando la tabla está realmente visible.
+    // Así evitamos que se quede con una medida vieja al volver desde el calendario.
+    const shouldStretchRows = !isMobile && viewMode === 'table' && paginatedReservations.length === itemsPerPage;
     const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
         rowCount: paginatedReservations.length,
         enabled: shouldStretchRows,
@@ -613,7 +643,6 @@ export default function ReservationsView({
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                ...vehicle,
                 status,
             })
         });
@@ -1029,7 +1058,8 @@ export default function ReservationsView({
     const handleQuickApprove = async (r) => {
         const ok = await updateReservationStatus(r, 'aprobada');
         if (ok) {
-            await fetchReservations();
+            setCurrentPage(1);
+            await fetchReservations(false, 1, false);
             if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
         } else {
             toast.error('Error al aprobar reserva');
@@ -1057,7 +1087,8 @@ export default function ReservationsView({
                 toast.success('Reserva rechazada');
                 setRejectModalReservation(null);
                 setRejectReason('');
-                await fetchReservations();
+                setCurrentPage(1);
+                await fetchReservations(false, 1, false);
                 if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
             } else {
                 toast.error('Error al rechazar la reserva');
@@ -1219,6 +1250,47 @@ export default function ReservationsView({
         setIsCentreDropdownOpen(false);
         setIsUserDropdownOpen(false);
         setIsVehicleDropdownOpen(false);
+    };
+
+    const handleCloseReservationDetails = () => {
+        reservationDetailsFetchRef.current += 1;
+        setIsReservationDetailsOpen(false);
+        setReservationDetails(null);
+        setReservationDetailsVehicle(null);
+        setReservationDetailsLoading(false);
+        setReservationDetailsError('');
+    };
+
+    const handleOpenReservationDetails = async (reservation) => {
+        if (!reservation) return;
+
+        setReservationDetails(reservation);
+        setReservationDetailsVehicle(null);
+        setReservationDetailsLoading(true);
+        setReservationDetailsError('');
+        setIsReservationDetailsOpen(true);
+
+        const requestId = reservationDetailsFetchRef.current + 1;
+        reservationDetailsFetchRef.current = requestId;
+
+        try {
+            const response = await apiFetch('/api/dashboard/vehicles');
+            if (!response.ok) throw new Error('No se han podido cargar los datos del vehículo');
+
+            const data = await response.json();
+            const vehicles = Array.isArray(data) ? data : [];
+            const found = vehicles.find((vehicle) => String(vehicle.id) === String(reservation.vehicle_id)) || null;
+
+            if (reservationDetailsFetchRef.current !== requestId) return;
+            setReservationDetailsVehicle(found);
+        } catch (error) {
+            if (reservationDetailsFetchRef.current !== requestId) return;
+            setReservationDetailsError('No se han podido cargar los datos completos del vehículo.');
+        } finally {
+            if (reservationDetailsFetchRef.current === requestId) {
+                setReservationDetailsLoading(false);
+            }
+        }
     };
 
     const handleSave = async (e) => {
@@ -1716,7 +1788,7 @@ export default function ReservationsView({
                                                             <div className="relative flex items-center">
                                                                 <input
                                                                     type="text"
-                                                                    placeholder="Buscar o seleccionar vehículo..."
+                                                            placeholder="Buscar o seleccionar vehículo..."
                                                                     value={isVehicleDropdownOpen ? vehicleSearchTermDropdown : (formData.vehicle_id ? (vehiclesList.find(v => v.id == formData.vehicle_id) ? formatVehicleLabel(vehiclesList.find(v => v.id == formData.vehicle_id)) : formData.temp_vehicle_info || '') : '')}
                                                                     onChange={(e) => {
                                                                         setVehicleSearchTermDropdown(e.target.value);
@@ -2172,6 +2244,7 @@ export default function ReservationsView({
                     if (!st || !et) return null;
                     return { ...r, _start: st, _end: et };
                 }).filter(Boolean);
+                const startOfDayM = (dt) => { const d = new Date(dt); d.setHours(0, 0, 0, 0); return d; };
                 const getResosForDay = (day) => {
                     const ds = new Date(day); ds.setHours(0,0,0,0);
                     const de = new Date(day); de.setHours(23,59,59,999);
@@ -2179,6 +2252,45 @@ export default function ReservationsView({
                 };
                 const STATUS_DOT = { pendiente:'bg-amber-400', aprobada:'bg-green-500', activa:'bg-blue-500', finalizada:'bg-violet-500', rechazada:'bg-red-500' };
                 const selectedResos = mobileCalSelectedDay ? getResosForDay(mobileCalSelectedDay) : [];
+                const weekRowsM = Array.from({ length: Math.ceil(calCells.length / 7) }, (_, w) => calCells.slice(w * 7, w * 7 + 7)).map((weekDays) => {
+                    const weekStart = startOfDayM(weekDays[0]);
+                    const weekEnd = startOfDayM(weekDays[6]);
+                    weekEnd.setHours(23, 59, 59, 999);
+
+                    const events = parsedM
+                        .filter(r => r._start <= weekEnd && r._end >= weekStart)
+                        .map(r => {
+                            const adjStart = startOfDayM(r._start) < weekStart ? 0 : weekDays.findIndex(d => isSameDayM(d, r._start));
+                            const adjEnd = weekDays.reduce((acc, d, i) => startOfDayM(r._end) >= startOfDayM(d) ? i : acc, 0);
+                            return {
+                                ...r,
+                                startCol: Math.max(0, adjStart),
+                                endCol: Math.min(6, adjEnd),
+                                isMultiDay: !isSameDayM(r._start, r._end),
+                            };
+                        })
+                        .sort((a, b) => a._start - b._start);
+
+                    const lanes = [];
+                    events.forEach(ev => {
+                        let placed = false;
+                        for (let i = 0; i < lanes.length; i++) {
+                            const overlaps = lanes[i].some(le => !(ev.endCol < le.startCol || ev.startCol > le.endCol));
+                            if (!overlaps) {
+                                lanes[i].push(ev);
+                                ev._lane = i;
+                                placed = true;
+                                break;
+                            }
+                        }
+                        if (!placed) {
+                            ev._lane = lanes.length;
+                            lanes.push([ev]);
+                        }
+                    });
+
+                    return { weekDays, events, laneCount: lanes.length, weekStart, weekEnd };
+                });
                 return (
                     <div className="flex flex-col gap-4">
                         {/* Navegación de mes */}
@@ -2203,28 +2315,69 @@ export default function ReservationsView({
                                     <div className="w-7 h-7 border-2 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin"></div>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-7">
-                                    {calCells.map((cellDate, idx) => {
-                                        const isCur = cellDate.getMonth() === calMonth;
-                                        const dayResos = isCur ? getResosForDay(cellDate) : [];
-                                        const isSelected = mobileCalSelectedDay && isSameDayM(cellDate, mobileCalSelectedDay);
+                                <div className="flex flex-col">
+                                    {weekRowsM.map(({ weekDays, events, laneCount, weekStart, weekEnd }, wi) => {
+                                        const rowHeight = Math.max(60, 44 + laneCount * 16);
                                         return (
                                             <div
-                                                key={idx}
-                                                onClick={() => { if (!isCur) return; setMobileCalSelectedDay(isSelected ? null : new Date(cellDate)); }}
-                                                className={`flex flex-col items-center py-2 px-1 min-h-[52px] border-r border-b border-slate-200 dark:border-slate-700 ${(idx % 7 === 6) ? 'border-r-0' : ''} ${isCur ? 'cursor-pointer' : 'opacity-30 pointer-events-none'} ${isSelected ? 'bg-primary/10 dark:bg-primary/20' : ''} transition-colors select-none`}
+                                                key={wi}
+                                                className={`relative grid grid-cols-7 border-b border-slate-200 dark:border-slate-700 ${wi === weekRowsM.length - 1 ? 'border-b-0' : ''}`}
+                                                style={{ minHeight: `${rowHeight}px` }}
                                             >
-                                                <span className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-semibold mb-1 ${isTodayM(cellDate) ? 'bg-primary text-white' : isSelected ? 'text-primary font-bold' : isCur ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'}`}>
-                                                    {cellDate.getDate()}
-                                                </span>
-                                                {dayResos.length > 0 && (
-                                                    <div className="flex gap-0.5 flex-wrap justify-center max-w-[28px]">
-                                                        {dayResos.slice(0, 3).map((r, i) => (
-                                                            <div key={i} className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[r.status] ?? 'bg-slate-400'}`} />
-                                                        ))}
-                                                        {dayResos.length > 3 && <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />}
-                                                    </div>
-                                                )}
+                                                {weekDays.map((cellDate, di) => {
+                                                    const isCur = cellDate.getMonth() === calMonth;
+                                                    const dayResos = isCur ? getResosForDay(cellDate) : [];
+                                                    const singleDayResos = dayResos.filter(r => isSameDayM(r._start, r._end));
+                                                    const isSelected = mobileCalSelectedDay && isSameDayM(cellDate, mobileCalSelectedDay);
+                                                    return (
+                                                        <div
+                                                            key={di}
+                                                            onClick={() => { if (!isCur) return; setMobileCalSelectedDay(isSelected ? null : new Date(cellDate)); }}
+                                                            className={`relative z-10 flex flex-col items-center py-2 px-1 min-h-[56px] border-r border-slate-200 dark:border-slate-700 ${di === 6 ? 'border-r-0' : ''} ${isCur ? 'cursor-pointer' : 'opacity-30 pointer-events-none'} ${isSelected ? 'bg-primary/10 dark:bg-primary/20' : ''} transition-colors select-none`}
+                                                        >
+                                                            <span className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-semibold mb-1 ${isTodayM(cellDate) ? 'bg-primary text-white' : isSelected ? 'text-primary font-bold' : isCur ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'}`}>
+                                                                {cellDate.getDate()}
+                                                            </span>
+                                                            {singleDayResos.length > 0 && (
+                                                                <div className="flex gap-0.5 flex-wrap justify-center max-w-[28px]">
+                                                                    {singleDayResos.slice(0, 3).map((r, i) => (
+                                                                        <div key={i} className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[r.status] ?? 'bg-slate-400'}`} />
+                                                                    ))}
+                                                                    {singleDayResos.length > 3 && <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+
+                                                <div className="absolute inset-x-0 z-20 pointer-events-none" style={{ top: '32px' }}>
+                                                    {events.filter(ev => ev.isMultiDay).map(ev => {
+                                                        const colW = 100 / 7;
+                                                        const left = ev.startCol * colW;
+                                                        const width = (ev.endCol - ev.startCol + 1) * colW;
+                                                        const top = ev._lane * 16;
+                                                        const bgColor = ({ pendiente:'#f59e0b', aprobada:'#22c55e', activa:'#3b82f6', finalizada:'#8b5cf6', rechazada:'#ef4444' }[ev.status] ?? '#94a3b8');
+                                                        const isStartVisible = ev.startCol > 0 || ev._start >= weekStart;
+                                                        const isEndVisible = ev.endCol < 6 || startOfDayM(ev._end) <= weekEnd;
+                                                        return (
+                                                            <button
+                                                                key={`${ev.id}-${wi}`}
+                                                                onClick={(e) => { e.stopPropagation(); handleOpenReservationDetails(ev); }}
+                                                                className="absolute pointer-events-auto overflow-hidden transition-all hover:brightness-110 active:brightness-90 shadow-sm"
+                                                                style={{
+                                                                    left: `calc(${left}% + 2px)`,
+                                                                    width: `calc(${width}% - 4px)`,
+                                                                    top: `${top}px`,
+                                                                    height: '10px',
+                                                                    backgroundColor: bgColor,
+                                                                    borderRadius: `${isStartVisible ? '999px' : '0'} ${isEndVisible ? '999px' : '0'} ${isEndVisible ? '999px' : '0'} ${isStartVisible ? '999px' : '0'}`,
+                                                                }}
+                                                                title={`${formatVehicleLabel(ev)} — ${ev.username || ''} (${ev._startLabel} - ${ev._endLabel})`}
+                                                            >
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -2256,17 +2409,24 @@ export default function ReservationsView({
                                         {selectedResos.map(r => {
                                             const startLabel = `${pad2m(r._start.getHours())}:${pad2m(r._start.getMinutes())}`;
                                             const endLabel   = `${pad2m(r._end.getHours())}:${pad2m(r._end.getMinutes())}`;
+                                            const vehicleName = formatVehicleName(r);
+                                            const vehiclePlate = formatVehiclePlate(r);
                                             return (
-                                                <div key={r.id} className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                                <div key={r.id} role="button" tabIndex={0} onClick={() => handleOpenReservationDetails(r)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenReservationDetails(r); } }} className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm cursor-pointer">
                                                     <div className="flex items-start justify-between gap-2">
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="font-bold text-slate-800 dark:text-white text-sm leading-tight">{formatVehicleLabel(r, false)}</p>
+                                                            <p className="font-bold text-slate-800 dark:text-white text-sm leading-tight break-words">{vehicleName}</p>
+                                                            {vehiclePlate && (
+                                                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                                                    Matrícula: {vehiclePlate}
+                                                                </p>
+                                                            )}
                                                             {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && (
                                                                 <p className="text-xs text-primary font-medium mt-0.5 truncate">{r.username}</p>
                                                             )}
-                                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 flex items-center gap-1">
                                                                 <FontAwesomeIcon icon={faClock} className="w-3 h-3" />
-                                                                {startLabel} – {endLabel}
+                                                                {startLabel} â€“ {endLabel}
                                                             </p>
                                                         </div>
                                                         <div className="flex flex-col items-end gap-2 shrink-0">
@@ -2275,10 +2435,10 @@ export default function ReservationsView({
                                                             </span>
                                                             {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || String(r.user_id) === String(currentUser.id)) && (
                                                                 <div className="flex gap-1">
-                                                                    <button onClick={() => handleOpenModal(r)} className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors">
+                                                                    <button onClick={(e) => { e.stopPropagation(); handleOpenModal(r); }} className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors">
                                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                                                     </button>
-                                                                    <button onClick={() => handleDeleteClick(r.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                                                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(r.id); }} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
                                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                                                     </button>
                                                                 </div>
@@ -2352,7 +2512,6 @@ export default function ReservationsView({
                     const events = parsedReservations
                         .filter(r => r._start <= weekEnd && r._end >= weekStart)
                         .map(r => {
-                            const startCol = Math.max(0, weekDays.findIndex(d => isSameDay(d, r._start)));
                             const rawStart = startOfDay(r._start);
                             const adjStart = rawStart < weekStart ? 0 : weekDays.findIndex(d => isSameDay(d, r._start));
                             const adjEnd = weekDays.reduce((acc, d, i) => startOfDay(r._end) >= startOfDay(d) ? i : acc, 0);
@@ -2456,7 +2615,7 @@ export default function ReservationsView({
                                                     return (
                                                         <button
                                                             key={ev.id + '-' + wi}
-                                                            onClick={(e) => { e.stopPropagation(); handleOpenModal(ev); }}
+                                                            onClick={(e) => { e.stopPropagation(); handleOpenReservationDetails(ev); }}
                                                             className="absolute flex items-center pointer-events-auto text-white text-[10px] font-semibold leading-none hover:brightness-110 active:brightness-90 transition-all overflow-hidden group"
                                                             style={{
                                                                 left: `calc(${left}% + 2px)`,
@@ -2468,7 +2627,7 @@ export default function ReservationsView({
                                                                 paddingLeft: isStartVisible ? '6px' : '2px',
                                                                 paddingRight: isEndVisible ? '6px' : '2px',
                                                             }}
-                                                            title={`${formatVehicleLabel(ev)} — ${ev.username || ''} (${ev._startLabel} - ${ev._endLabel})`}
+                                title={`${formatVehicleLabel(ev)} — ${ev.username || ''} (${ev._startLabel} - ${ev._endLabel})`}
                                                         >
                                                             {isStartVisible && (
                                                                 <span className="shrink-0 opacity-90 mr-1">{ev._startLabel}</span>
@@ -2507,7 +2666,12 @@ export default function ReservationsView({
                         >
                             <div className="flex justify-between items-start mb-4">
                                 <div className="flex-1 min-w-0 pr-2">
-                                    <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight break-words">{formatVehicleLabel(r, false)}</h3>
+                                    <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight break-words">{formatVehicleName(r)}</h3>
+                                    {formatVehiclePlate(r) && (
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                            Matrícula: {formatVehiclePlate(r)}
+                                        </p>
+                                    )}
                                     {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && (
                                         <p className="text-primary font-medium text-xs mt-1">
                                             Usuario:
@@ -2529,10 +2693,10 @@ export default function ReservationsView({
                             {r.status === 'rechazada' && r.motivo_rechazo && (
                                 <button
                                     type="button"
-                                    onClick={() => setViewingReason({
+                                    onClick={(e) => { e.stopPropagation(); setViewingReason({
                                         title: 'Motivo de rechazo',
                                         reason: r.motivo_rechazo
-                                    })}
+                                    }); }}
                                     className="mb-3 text-[10px] font-bold text-red-500 hover:underline uppercase tracking-tighter flex items-center gap-1.5 transition-all hover:scale-105"
                                 >
                                     <FontAwesomeIcon icon={faTriangleExclamation} className="text-[9px]" />
@@ -2561,14 +2725,14 @@ export default function ReservationsView({
                                 {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && r.status === 'pendiente' && (
                                     <div className="flex gap-2">
                                         <button
-                                            onClick={() => handleQuickApprove(r)}
+                                            onClick={(e) => { e.stopPropagation(); handleQuickApprove(r); }}
                                             className="p-2.5 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-xl hover:bg-green-100 transition-colors"
                                             title="Aprobar rápidamente"
                                         >
                                             <FontAwesomeIcon icon={faCheck} className="w-4 h-4" />
                                         </button>
                                         <button
-                                            onClick={() => handleQuickReject(r)}
+                                            onClick={(e) => { e.stopPropagation(); handleQuickReject(r); }}
                                             className="p-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 transition-colors"
                                             title="Rechazar rápidamente"
                                         >
@@ -2583,7 +2747,7 @@ export default function ReservationsView({
                                     && String(r.user_id) !== String(currentUser.id)
                                 ) && (
                                         <button
-                                            onClick={() => handleOpenDeliveryModal(r)}
+                                            onClick={(e) => { e.stopPropagation(); handleOpenDeliveryModal(r); }}
                                             className="p-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-xl hover:bg-indigo-100 transition-colors"
                                             title="Completar entrega como supervisor/admin"
                                         >
@@ -2593,7 +2757,7 @@ export default function ReservationsView({
                                 {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || r.user_id === currentUser.id) ? (
                                     <>
                                         <button
-                                            onClick={() => handleOpenModal(r)}
+                                            onClick={(e) => { e.stopPropagation(); handleOpenModal(r); }}
                                             className="px-4 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl hover:bg-amber-100 transition-colors text-xs font-bold flex items-center gap-2"
                                         >
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2602,7 +2766,7 @@ export default function ReservationsView({
                                             Editar
                                         </button>
                                         <button
-                                            onClick={() => handleDeleteClick(r.id)}
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(r.id); }}
                                             className="p-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 transition-colors"
                                         >
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2664,7 +2828,7 @@ export default function ReservationsView({
                                 </thead>
                                 <tbody>
                                     {paginatedReservations.map((r) => (
-                                        <tr key={r.id} style={rowHeight != null ? { height: `${rowHeight}px` } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                        <tr key={r.id} onClick={() => handleOpenReservationDetails(r)} style={rowHeight != null ? { height: `${rowHeight}px` } : undefined} className="cursor-pointer border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                             {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && (
                                                 <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
                                                     <span
@@ -2701,10 +2865,10 @@ export default function ReservationsView({
                                                     {r.status === 'rechazada' && r.motivo_rechazo && (
                                                         <button
                                                             type="button"
-                                                            onClick={() => setViewingReason({
+                                                            onClick={(e) => { e.stopPropagation(); setViewingReason({
                                                                 title: 'Motivo de rechazo',
                                                                 reason: r.motivo_rechazo
-                                                            })}
+                                                            }); }}
                                                             className="mt-1 text-[9px] font-bold text-red-500 hover:underline uppercase tracking-tighter transition-all hover:scale-105"
                                                         >
                                                             Ver motivo
@@ -2718,14 +2882,14 @@ export default function ReservationsView({
                                                 {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && r.status === 'pendiente' && (
                                                     <>
                                                         <button
-                                                            onClick={() => handleQuickApprove(r)}
+                                                            onClick={(e) => { e.stopPropagation(); handleQuickApprove(r); }}
                                                             className="p-2 text-slate-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors mr-1"
                                                             title="Aprobar rápidamente"
                                                         >
                                                             <FontAwesomeIcon icon={faCheck} className="w-5 h-5" />
                                                         </button>
                                                         <button
-                                                            onClick={() => handleQuickReject(r)}
+                                                            onClick={(e) => { e.stopPropagation(); handleQuickReject(r); }}
                                                             className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors mr-1"
                                                             title="Rechazar rápidamente"
                                                         >
@@ -2741,7 +2905,7 @@ export default function ReservationsView({
                                                     && typeof onDeliverReservation === 'function'
                                                 ) && (
                                                         <button
-                                                            onClick={() => handleOpenDeliveryModal(r)}
+                                                            onClick={(e) => { e.stopPropagation(); handleOpenDeliveryModal(r); }}
                                                             className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors mr-1"
                                                             title="Completar entrega como supervisor/admin"
                                                         >
@@ -2751,7 +2915,7 @@ export default function ReservationsView({
                                                 {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || r.user_id === currentUser.id) ? (
                                                     <>
                                                         <button
-                                                            onClick={() => handleOpenModal(r)}
+                                                            onClick={(e) => { e.stopPropagation(); handleOpenModal(r); }}
                                                             className="p-2 text-slate-400 hover:text-primary hover:bg-primary/20 dark:hover:bg-primary/20 rounded-lg transition-colors mr-1"
                                                             title="Editar reserva"
                                                         >
@@ -2761,7 +2925,7 @@ export default function ReservationsView({
                                                         </button>
 
                                                         <button
-                                                            onClick={() => handleDeleteClick(r.id)}
+                                                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(r.id); }}
                                                             aria-label="Eliminar reserva"
                                                             className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                                                             title="Eliminar reserva"
@@ -2871,7 +3035,7 @@ export default function ReservationsView({
                                     </div>
                                 )}
 
-                                {/* PASO 1 (Admin/Supervisor): SELECCIÓN DE USUARIO */}
+            {/* PASO 1 (Admin/Supervisor): SELECCIÓN DE USUARIO */}
                                 {showCreateUserStep && (
                                     <div className="select-none animate-in fade-in slide-in-from-right-4 duration-300">
                                         <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Reserva de:</label>
@@ -3555,6 +3719,121 @@ export default function ReservationsView({
                     </div>
                 </div>
             )}
+            {isReservationDetailsOpen && reservationDetails && renderOverlay(
+                <div
+                    className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-slate-900/50 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay"
+                    onClick={handleCloseReservationDetails}
+                >
+                    <div
+                        className="bg-white dark:bg-slate-800 shadow-2xl w-full h-full sm:h-[90vh] sm:max-w-5xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800 dark:text-white">
+                                    Detalles de la reserva
+                                </h3>
+                            </div>
+                            <button
+                                onClick={handleCloseReservationDetails}
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2"
+                                aria-label="Cerrar detalles"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            {reservationDetailsLoading && (
+                                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                                    <div className="w-4 h-4 border-2 border-slate-300 dark:border-slate-600 border-t-primary rounded-full animate-spin" />
+                                    Cargando datos del vehículo...
+                                </div>
+                            )}
+
+                            {reservationDetailsError && (
+                                <div className="rounded-2xl border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                                    {reservationDetailsError}
+                                </div>
+                            )}
+
+                            <section className="space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                    <h4 className="text-base font-bold text-slate-800 dark:text-white">Datos de la reserva</h4>
+                                    <span className={`chip-uniform px-3 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[reservationDetails.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                        {formatReadableValue(reservationDetails.status)}
+                                    </span>
+                                </div>
+                                <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 p-4">
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Usuario</p>
+                                        <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-white">{formatDetailValue(reservationDetails.username)}</p>
+                                    </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    
+                                    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 p-4">
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Inicio</p>
+                                        <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-white">{formatDate(reservationDetails.start_time)}</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 p-4">
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Fin</p>
+                                        <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-white">{formatDate(reservationDetails.end_time)}</p>
+                                    </div>
+                                </div>
+                                {reservationDetails.motivo_rechazo && (
+                                    <div className="rounded-2xl border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-900/20 p-4">
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-red-500 dark:text-red-300">Motivo de rechazo</p>
+                                        <p className="mt-1 text-sm text-red-700 dark:text-red-200 whitespace-pre-wrap break-words">{reservationDetails.motivo_rechazo}</p>
+                                    </div>
+                                )}
+                            </section>
+
+                            <section className="space-y-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-11 h-11 rounded-2xl bg-fuchsia-700/20 dark:bg-fuchsia-600/20 flex items-center justify-center shrink-0">
+                                        <svg className="w-6 h-6 text-fuchsia-600 dark:text-fuchsia-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 13l2-5a2 2 0 011.857-1.25h12.286A2 2 0 0121 8l2 5v5a1 1 0 01-1 1h-1a2 2 0 11-4 0H7a2 2 0 11-4 0H2a1 1 0 01-1-1v-5z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-base font-bold text-slate-800 dark:text-white">Detalles del vehículo</h4>
+                                    </div>
+                                </div>
+                                <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/30 p-3 sm:p-4">
+                                    {(() => {
+                                        const vehicle = reservationDetailsVehicle || reservationDetails;
+                                        const fullName = [vehicle?.brand, vehicle?.model].filter(Boolean).join(' ') || vehicle?.model || vehicle?.brand || 'Vehículo';
+                                        const vehicleRows = [
+                                            { label: 'Vehículo', value: `${fullName}${vehicle?.license_plate ? ` (${vehicle.license_plate})` : ''}` },
+                                            { label: 'Tipo', value: formatReadableValue(vehicle?.vehicle_type) },
+                                            { label: 'Plazas', value: formatDetailValue(vehicle?.seats) },
+                                            { label: 'Maletero', value: formatDetailValue(vehicle?.trunk_capacity_l) },
+                                            { label: 'Energía', value: formatReadableValue(vehicle?.energy_type) },
+                                            { label: 'Nivel de combustible', value: formatReadableValue(vehicle?.fuel_level) },
+                                            { label: 'Kilómetros', value: formatDetailValue(vehicle?.kilometers) },
+                                        ];
+
+                                        return (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {vehicleRows.map((item) => (
+                                                    <div
+                                                        key={item.label}
+                                                        className="rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-800/70 px-4 py-3 flex items-center justify-between gap-3 shadow-sm"
+                                                    >
+                                                        <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">{item.label}</p>
+                                                        <p className="text-sm font-bold text-slate-900 dark:text-white text-right">{item.value}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* MODAL PARA VER MOTIVO */}
             {viewingReason && renderOverlay(
                 <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
@@ -3593,5 +3872,6 @@ export default function ReservationsView({
         </div>
     );
 }
+
 
 

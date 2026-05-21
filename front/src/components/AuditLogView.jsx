@@ -256,7 +256,7 @@ const FilterSelect = ({ value, onChange, options, placeholder, icon }) => {
             leaveFrom="opacity-100 translate-y-0"
             leaveTo="opacity-0 translate-y-1"
           >
-            <Listbox.Options className="absolute z-50 mt-2 max-h-74 w-full overflow-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-2 shadow-2xl ring-1 ring-black/5 focus:outline-none">
+            <Listbox.Options className="absolute z-50 mt-2 max-h-74 w-full overflow-auto custom-scrollbar rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-2 shadow-2xl ring-1 ring-black/5 focus:outline-none">
               {options.map((option) => (
                 <Listbox.Option
                   key={option.value}

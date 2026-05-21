@@ -208,7 +208,7 @@ const CentreSelectionModal = ({ open, user, refreshCurrentUser }) => {
               <div className="col-span-0 sm:col-span-1 text-right">Elegir</div>
             </div>
 
-            <div className="max-h-[52vh] overflow-y-auto">
+            <div className="max-h-[52vh] overflow-y-auto custom-scrollbar">
               {loading ? (
                 <div className="px-5 py-10 text-center text-sm text-slate-400">Cargando centros...</div>
               ) : filteredCentres.length === 0 ? (

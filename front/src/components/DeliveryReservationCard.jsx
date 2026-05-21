@@ -72,7 +72,7 @@ const formatVehicleLabel = (vehicle = {}, includePlate = true) => {
   const brand = String(vehicle?.brand ?? '').trim();
   const model = String(vehicle?.model ?? '').trim();
   const plate = String(vehicle?.license_plate ?? '').trim();
-  const name = [brand, model].filter(Boolean).join(' / ') || model || brand || 'Vehículo';
+  const name = [brand, model].filter(Boolean).join(' ') || model || brand || 'Vehículo';
   return includePlate && plate ? `${name} (${plate})` : name;
 };
 

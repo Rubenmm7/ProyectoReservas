@@ -12,7 +12,6 @@ import useIsMobile from '../hooks/useIsMobile';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useSocket } from '../hooks/useSocket';
 import { useReservationRealtimeNotifications } from '../hooks/useReservationRealtimeNotifications';
-import { useAdaptiveTableRowHeight } from '../hooks/useAdaptiveTableRowHeight';
 import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
 import { getDesiredReservationStatusForTime, planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
 import { formatLocalDateTime, parseMySqlDateTime, toLocalInputDateTime } from '../utils/dateTime';
@@ -79,7 +78,7 @@ const formatVehicleLabel = (vehicle = {}, includePlate = true) => {
   const brand = String(vehicle?.brand ?? '').trim();
   const model = String(vehicle?.model ?? '').trim();
   const plate = String(vehicle?.license_plate ?? '').trim();
-  const name = [brand, model].filter(Boolean).join(' / ') || model || brand || 'Vehículo';
+  const name = [brand, model].filter(Boolean).join(' ') || model || brand || 'Vehículo';
   return includePlate && plate ? `${name} (${plate})` : name;
 };
 
@@ -567,10 +566,6 @@ const HomeView = ({
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-  const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
-    rowCount: itemsPerPage,
-    enabled: true,
-  });
   const fillerRowsCount = Math.max(0, itemsPerPage - paginatedReservations.length);
 
   const handleSendMailTest = async () => {
@@ -757,10 +752,10 @@ const HomeView = ({
             No hay reservas registradas
           </div>
         ) : (
-          <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
-            <div ref={tableWrapperRef} className="flex-1 overflow-hidden">
+          <div className="flex-none h-[32rem] flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
               <table className="w-full text-sm text-left relative">
-                <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
+                <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                   <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider font-semibold">
                     {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
                     <th className="pb-3 px-4 text-center">Vehículo</th>
@@ -772,7 +767,7 @@ const HomeView = ({
                 </thead>
                 <tbody>
                   {paginatedReservations.map((r) => (
-                    <tr key={r.id} style={rowHeight != null ? { height: `${rowHeight}px` } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                    <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                       {isAdmin && (
                         <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
                           <span
@@ -831,7 +826,6 @@ const HomeView = ({
                   {Array.from({ length: fillerRowsCount }).map((_, index) => (
                     <tr
                       key={`reservation-filler-${index}`}
-                      style={rowHeight != null ? { height: `${rowHeight}px` } : undefined}
                       aria-hidden="true"
                       className="select-none pointer-events-none border-b border-transparent bg-transparent text-transparent"
                     >
@@ -1079,6 +1073,84 @@ const MobileHomeView = ({
   // Build grid cells: blanks + days
   const totalCells = startOffset + daysInMonth;
   const rows = Math.ceil(totalCells / 7);
+  const mobileCalCells = (() => {
+    const cells = [];
+    for (let i = 0; i < startOffset; i++) {
+      cells.push(new Date(calYear, calMonth, -(startOffset - i - 1)));
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells.push(new Date(calYear, calMonth, d));
+    }
+    while (cells.length % 7 !== 0) {
+      cells.push(new Date(calYear, calMonth + 1, cells.length - startOffset - daysInMonth + 1));
+    }
+    return cells;
+  })();
+  const mobileCalendarWeekRows = Array.from({ length: Math.ceil(mobileCalCells.length / 7) }, (_, w) => mobileCalCells.slice(w * 7, w * 7 + 7)).map((weekDays) => {
+    const weekStart = new Date(weekDays[0]);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekDays[6]);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const events = displayedReservations
+      .map((r) => {
+        const startDate = parseMySqlDateTime(r.start_time) ?? new Date(r.start_time);
+        const endDate = parseMySqlDateTime(r.end_time) ?? new Date(r.end_time);
+        if (startDate > weekEnd || endDate < weekStart) {
+          return null;
+        }
+
+        const adjStart = startDate <= weekStart
+          ? 0
+          : weekDays.findIndex((d) =>
+              d.getFullYear() === startDate.getFullYear() &&
+              d.getMonth() === startDate.getMonth() &&
+              d.getDate() === startDate.getDate()
+            );
+        const adjEnd = weekDays.reduce((acc, d, i) => {
+          const dayStart = new Date(d);
+          dayStart.setHours(0, 0, 0, 0);
+          return endDate >= dayStart ? i : acc;
+        }, 0);
+
+        return {
+          ...r,
+          startCol: Math.max(0, adjStart),
+          endCol: Math.min(6, adjEnd),
+          isMultiDay: !(
+            startDate.getFullYear() === endDate.getFullYear() &&
+            startDate.getMonth() === endDate.getMonth() &&
+            startDate.getDate() === endDate.getDate()
+          ),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        const aStart = parseMySqlDateTime(a.start_time) ?? new Date(a.start_time);
+        const bStart = parseMySqlDateTime(b.start_time) ?? new Date(b.start_time);
+        return aStart - bStart;
+      });
+
+    const lanes = [];
+    events.forEach((ev) => {
+      let placed = false;
+      for (let i = 0; i < lanes.length; i++) {
+        const overlaps = lanes[i].some((le) => !(ev.endCol < le.startCol || ev.startCol > le.endCol));
+        if (!overlaps) {
+          lanes[i].push(ev);
+          ev._lane = i;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        ev._lane = lanes.length;
+        lanes.push([ev]);
+      }
+    });
+
+    return { weekDays, events, laneCount: lanes.length, weekStart, weekEnd };
+  });
 
   return (
     <div className="animate-fade-in flex flex-col gap-4 h-full">
@@ -1157,50 +1229,134 @@ const MobileHomeView = ({
               ))}
             </div>
 
-            {/* Day grid */}
-            <div className="grid grid-cols-7 gap-px bg-slate-200 dark:bg-slate-700 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
-              {Array.from({ length: rows * 7 }).map((_, idx) => {
-                const day = idx - startOffset + 1;
-                const isValid = day >= 1 && day <= daysInMonth;
-                const dayDate = isValid ? new Date(calYear, calMonth, day) : null;
-                const isToday = isValid && dayDate.getTime() === today.getTime();
-                const isSelected = isValid && day === selectedDay;
-                const dayRes = isValid ? (dayResMap[day] ?? []) : [];
-                const hasRes = dayRes.length > 0;
-
-                return (
-                  <button
-                    key={idx}
-                    disabled={!isValid}
-                    onClick={() => isValid && setSelectedDay(day === selectedDay ? null : day)}
-                    className={`relative flex flex-col items-center pt-1.5 pb-1 min-h-[44px] transition-colors
-                      ${!isValid ? 'bg-slate-50 dark:bg-slate-900/40 cursor-default' :
-                        isSelected ? 'bg-primary/10 dark:bg-primary/20' :
-                        'bg-white dark:bg-slate-800/60 active:bg-slate-100 dark:active:bg-slate-700/60 cursor-pointer'}
-                    `}
+            {user.role === 'empleado' ? (
+              <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-200 dark:bg-slate-700">
+                {mobileCalendarWeekRows.map(({ weekDays, events, laneCount, weekStart, weekEnd }, wi) => (
+                  <div
+                    key={wi}
+                    className="relative grid grid-cols-7 bg-white dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 last:border-b-0"
+                    style={{ minHeight: `${Math.max(58, 42 + laneCount * 14)}px` }}
                   >
-                    {isValid && (
-                      <>
-                        <span className={`text-xs font-semibold leading-none mb-1 w-6 h-6 flex items-center justify-center rounded-full
-                          ${isToday ? 'bg-primary text-white' :
-                            isSelected ? 'text-primary font-bold' :
-                            'text-slate-700 dark:text-slate-200'}`}>
-                          {day}
-                        </span>
-                        {hasRes && (
-                          <div className="flex flex-wrap justify-center gap-[2px] max-w-full px-0.5">
-                            {dayRes.slice(0, 3).map((r, i) => (
-                              <span key={i} className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[r.status] ?? 'bg-slate-400'}`} />
-                            ))}
-                            {dayRes.length > 3 && <span className="text-[8px] text-slate-400 leading-none">+{dayRes.length - 3}</span>}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+                    {weekDays.map((cellDate, di) => {
+                      const isValid = cellDate.getMonth() === calMonth;
+                      const isTodayCell = isValid && cellDate.getTime() === today.getTime();
+                      const isSelected = isValid && cellDate.getDate() === selectedDay;
+                      const dayRes = isValid ? (dayResMap[cellDate.getDate()] ?? []) : [];
+                      const singleDayRes = dayRes.filter((r) => {
+                        const start = parseMySqlDateTime(r.start_time) ?? new Date(r.start_time);
+                        const end = parseMySqlDateTime(r.end_time) ?? new Date(r.end_time);
+                        return start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth() && start.getDate() === end.getDate();
+                      });
+
+                      return (
+                        <button
+                          key={`${wi}-${di}`}
+                          disabled={!isValid}
+                          onClick={() => isValid && setSelectedDay(cellDate.getDate() === selectedDay ? null : cellDate.getDate())}
+                          className={`relative z-10 flex flex-col items-center pt-1.5 pb-1 min-h-[58px] transition-colors border-r border-slate-200 dark:border-slate-700 last:border-r-0
+                            ${!isValid ? 'bg-slate-50 dark:bg-slate-900/40 cursor-default opacity-30' :
+                              isSelected ? 'bg-primary/10 dark:bg-primary/20' :
+                              'bg-white dark:bg-slate-800/60 active:bg-slate-100 dark:active:bg-slate-700/60 cursor-pointer'}`}
+                        >
+                          <span className={`text-xs font-semibold leading-none mb-1 w-6 h-6 flex items-center justify-center rounded-full
+                            ${isTodayCell ? 'bg-primary text-white' :
+                              isSelected ? 'text-primary font-bold' :
+                              'text-slate-700 dark:text-slate-200'}`}>
+                            {cellDate.getDate()}
+                          </span>
+                          {singleDayRes.length > 0 && (
+                            <div className="flex flex-wrap justify-center gap-[2px] max-w-full px-0.5">
+                              {singleDayRes.slice(0, 3).map((r, i) => (
+                                <span key={i} className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[r.status] ?? 'bg-slate-400'}`} />
+                              ))}
+                              {singleDayRes.length > 3 && <span className="text-[8px] text-slate-400 leading-none">+{singleDayRes.length - 3}</span>}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+
+                    <div className="absolute inset-x-0 z-20 pointer-events-none" style={{ top: '31px' }}>
+                      {events.filter((ev) => ev.isMultiDay).map((ev) => {
+                        const colW = 100 / 7;
+                        const left = ev.startCol * colW;
+                        const width = (ev.endCol - ev.startCol + 1) * colW;
+                        const top = ev._lane * 12;
+                        const barColor = ({
+                          pendiente: '#f59e0b',
+                          aprobada: '#22c55e',
+                          activa: '#3b82f6',
+                          finalizada: '#8b5cf6',
+                          rechazada: '#ef4444',
+                        }[ev.status] ?? '#94a3b8');
+                        const isStartVisible = ev.startCol > 0 || ev._start >= weekStart;
+                        const isEndVisible = ev.endCol < 6 || ev._end <= weekEnd;
+
+                        return (
+                          <div
+                            key={`${ev.id}-${wi}`}
+                            className="absolute shadow-sm"
+                            style={{
+                              left: `calc(${left}% + 2px)`,
+                              width: `calc(${width}% - 4px)`,
+                              top: `${top}px`,
+                              height: '8px',
+                              backgroundColor: barColor,
+                              borderRadius: `${isStartVisible ? '999px' : '0'} ${isEndVisible ? '999px' : '0'} ${isEndVisible ? '999px' : '0'} ${isStartVisible ? '999px' : '0'}`,
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* Day grid */
+              <div className="grid grid-cols-7 gap-px bg-slate-200 dark:bg-slate-700 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                {Array.from({ length: rows * 7 }).map((_, idx) => {
+                  const day = idx - startOffset + 1;
+                  const isValid = day >= 1 && day <= daysInMonth;
+                  const dayDate = isValid ? new Date(calYear, calMonth, day) : null;
+                  const isToday = isValid && dayDate.getTime() === today.getTime();
+                  const isSelected = isValid && day === selectedDay;
+                  const dayRes = isValid ? (dayResMap[day] ?? []) : [];
+                  const hasRes = dayRes.length > 0;
+
+                  return (
+                    <button
+                      key={idx}
+                      disabled={!isValid}
+                      onClick={() => isValid && setSelectedDay(day === selectedDay ? null : day)}
+                      className={`relative flex flex-col items-center pt-1.5 pb-1 min-h-[44px] transition-colors
+                        ${!isValid ? 'bg-slate-50 dark:bg-slate-900/40 cursor-default' :
+                          isSelected ? 'bg-primary/10 dark:bg-primary/20' :
+                          'bg-white dark:bg-slate-800/60 active:bg-slate-100 dark:active:bg-slate-700/60 cursor-pointer'}
+                      `}
+                    >
+                      {isValid && (
+                        <>
+                          <span className={`text-xs font-semibold leading-none mb-1 w-6 h-6 flex items-center justify-center rounded-full
+                            ${isToday ? 'bg-primary text-white' :
+                              isSelected ? 'text-primary font-bold' :
+                              'text-slate-700 dark:text-slate-200'}`}>
+                            {day}
+                          </span>
+                          {hasRes && (
+                            <div className="flex flex-wrap justify-center gap-[2px] max-w-full px-0.5">
+                              {dayRes.slice(0, 3).map((r, i) => (
+                                <span key={i} className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[r.status] ?? 'bg-slate-400'}`} />
+                              ))}
+                              {dayRes.length > 3 && <span className="text-[8px] text-slate-400 leading-none">+{dayRes.length - 3}</span>}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Selected day detail */}
             {selectedDay && (
@@ -1244,73 +1400,84 @@ const MobileHomeView = ({
           <div className="text-slate-400 text-center py-10 italic">No hay ninguna reserva</div>
         ) : (
           <div className="space-y-4">
-            {paginatedReservations.map((r) => (
-              <div
-                key={r.id}
-                className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 shadow-[0_2px_8px_rgba(0,0,0,0.07)] dark:shadow-none hover:border-primary/50 dark:hover:border-primary/50 transition-all group">
-                <div className="flex justify-between items-start mb-4 gap-3 flex-wrap">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight truncate">{r.model}</h3>
-                    {isAdmin && (
-                      <p className="text-primary font-medium text-xs mt-1 truncate">Usuario: {r.username}</p>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
-                      {r.status}
-                    </span>
-                    {r.status === 'rechazada' && r.motivo_rechazo && (
-                      <button
-                        type="button"
-                        onClick={() => onViewReason({
-                          title: 'Motivo de rechazo',
-                          reason: r.motivo_rechazo
-                        })}
-                        className="text-[10px] font-semibold text-red-500 dark:text-red-400 flex items-center gap-1 transition-all active:scale-95"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        Ver motivo
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-2 mb-5">
-                  <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-                    <FontAwesomeIcon icon={faCalendarAlt} className="w-3.5 h-3.5 text-primary" />
-                    <div className="flex flex-col">
-                      <span className="text-[10px] uppercase font-bold text-slate-400">Inicio</span>
-                      <span className="text-xs font-semibold">{formatDateTime(r.start_time)}</span>
+            {paginatedReservations.map((r) => {
+              const vehicleName = [r.brand, r.marca, r.model].filter(Boolean).join(' ') || r.model || r.brand || r.marca || 'Vehículo';
+              const vehiclePlate = String(r.license_plate ?? '').trim();
+
+              return (
+                <div
+                  key={r.id}
+                  className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 shadow-[0_2px_8px_rgba(0,0,0,0.07)] dark:shadow-none hover:border-primary/50 dark:hover:border-primary/50 transition-all group">
+                  <div className="flex justify-between items-start mb-4 gap-3 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight whitespace-normal break-words">
+                        {vehicleName}
+                      </h3>
+                      {vehiclePlate && (
+                        <p className="text-xs font-mono text-slate-400 mt-1 whitespace-normal break-words">
+                          ({vehiclePlate})
+                        </p>
+                      )}
+                      {isAdmin && (
+                        <p className="text-primary font-medium text-xs mt-1 truncate">Usuario: {r.username}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
+                        {r.status}
+                      </span>
+                      {r.status === 'rechazada' && r.motivo_rechazo && (
+                        <button
+                          type="button"
+                          onClick={() => onViewReason({
+                            title: 'Motivo de rechazo',
+                            reason: r.motivo_rechazo
+                          })}
+                          className="text-[10px] font-semibold text-red-500 dark:text-red-400 flex items-center gap-1 transition-all active:scale-95"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          Ver motivo
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-                    <FontAwesomeIcon icon={faClock} className="w-3.5 h-3.5 text-amber-500" />
-                    <div className="flex flex-col">
-                      <span className="text-[10px] uppercase font-bold text-slate-400">Fin</span>
-                      <span className="text-xs font-semibold">{formatDateTime(r.end_time)}</span>
+                  <div className="space-y-2 mb-5">
+                    <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
+                      <FontAwesomeIcon icon={faCalendarAlt} className="w-3.5 h-3.5 text-primary" />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Inicio</span>
+                        <span className="text-xs font-semibold">{formatDateTime(r.start_time)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
+                      <FontAwesomeIcon icon={faClock} className="w-3.5 h-3.5 text-amber-500" />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Fin</span>
+                        <span className="text-xs font-semibold">{formatDateTime(r.end_time)}</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-xs font-mono text-slate-400 ml-7">{r.license_plate}</div>
+                  <div className="flex items-center justify-end pt-4 border-t border-slate-200 dark:border-slate-700/50 gap-2">
+                    <button
+                      onClick={() => onEdit(r)}
+                      className="px-4 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl hover:bg-amber-100 transition-colors text-xs font-bold flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => onDelete(r.id)}
+                      aria-label="Eliminar reserva"
+                      className="p-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center justify-end pt-4 border-t border-slate-200 dark:border-slate-700/50 gap-2">
-                  <button
-                    onClick={() => onEdit(r)}
-                    className="px-4 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl hover:bg-amber-100 transition-colors text-xs font-bold flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                    </svg>
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => onDelete(r.id)}
-                    aria-label="Eliminar reserva"
-                    className="p-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 transition-colors">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             {visibleItems < displayedReservations.length && (
               <div ref={scrollObserverRef} className="h-10 flex items-center justify-center">
                 <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>

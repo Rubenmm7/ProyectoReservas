@@ -39,6 +39,8 @@ const TimeValueSelect = ({ label, value, options, onChange }) => {
         width: `${rect.width}px`,
         maxHeight: '240px',
         overflowY: 'auto',
+        scrollbarWidth: 'thin',
+        scrollbarColor: 'var(--scrollbar-thumb, #cbd5e1) transparent',
         top: openUpward ? 'auto' : `${Math.min(rect.bottom + gap, window.innerHeight - 16)}px`,
         bottom: openUpward ? `${Math.max(window.innerHeight - rect.top + gap, 16)}px` : 'auto',
         left: `${Math.max(16, Math.min(rect.left, window.innerWidth - rect.width - 16))}px`,
@@ -80,7 +82,7 @@ const TimeValueSelect = ({ label, value, options, onChange }) => {
         <div
           ref={menuRef}
           onMouseDown={(event) => event.stopPropagation()}
-          className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl p-1 overscroll-contain"
+          className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl p-1 overscroll-contain custom-scrollbar"
           style={menuStyle}
           role="listbox"
           aria-label={label}
