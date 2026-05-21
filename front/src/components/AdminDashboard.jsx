@@ -666,6 +666,8 @@ const HomeView = ({
                   <RechartsTooltip
                     cursor={{ fill: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)' }}
                     contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
+                    labelStyle={{ color: darkMode ? '#f8fafc' : '#0f172a' }}
+                    itemStyle={{ color: darkMode ? '#f8fafc' : '#0f172a' }}
                   />
                   <Bar dataKey="value" name="Reservas" radius={[0, 6, 6, 0]} barSize={24}>
                     {vehicleUsageData.map((entry, index) => (
@@ -695,7 +697,7 @@ const HomeView = ({
                     ))}
                   </Pie>
                   <RechartsTooltip
-                    contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
+                    contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color:'#f8fafc'}}
                   />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '13px', paddingTop: '10px', color: darkMode ? '#cbd5e1' : '#475569' }} />
                 </PieChart>
@@ -985,6 +987,14 @@ const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode,
 );
 
 // ── Pagina de inicio de movil ──
+const STATUS_DOT = {
+  aprobada: 'bg-green-500',
+  activa: 'bg-blue-500',
+  finalizada: 'bg-violet-500',
+  rechazada: 'bg-red-500',
+  pendiente: 'bg-amber-500',
+};
+
 const MobileHomeView = ({
   reservations,
   loading,
@@ -1001,6 +1011,11 @@ const MobileHomeView = ({
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
   const [visibleItems, setVisibleItems] = useState(10);
   const scrollObserverRef = useRef(null);
+  const [viewMode, setViewMode] = useState('table');
+  const [calendarDate, setCalendarDate] = useState(() => {
+    const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d;
+  });
+  const [selectedDay, setSelectedDay] = useState(null);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -1022,8 +1037,51 @@ const MobileHomeView = ({
   const displayedReservations = isAdmin ? reservations : getEmployeeVisibleReservations(reservations, user.id, submittedDeliveryIds);
   const paginatedReservations = displayedReservations.slice(0, visibleItems);
 
+  // ── Calendar helpers ──
+  const calYear = calendarDate.getFullYear();
+  const calMonth = calendarDate.getMonth();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const firstWeekday = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
+  // shift to Mon-first: (0→6, 1→0, 2→1, …)
+  const startOffset = (firstWeekday + 6) % 7;
+  const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const DAY_LABELS = ['L','M','X','J','V','S','D'];
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  const resCoversDay = (r, dayDate) => {
+    const start = parseMySqlDateTime(r.start_time) ?? new Date(r.start_time);
+    const end   = parseMySqlDateTime(r.end_time)   ?? new Date(r.end_time);
+    const dayStart = new Date(dayDate); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd   = new Date(dayDate); dayEnd.setHours(23, 59, 59, 999);
+    return start <= dayEnd && end >= dayStart;
+  };
+
+  const dayResMap = useMemo(() => {
+    const map = {};
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(calYear, calMonth, d);
+      map[d] = displayedReservations.filter(r => resCoversDay(r, date));
+    }
+    return map;
+  }, [displayedReservations, calYear, calMonth, daysInMonth]);
+
+  const selectedDayRes = selectedDay ? (dayResMap[selectedDay] ?? []) : [];
+
+  const prevMonth = () => {
+    setCalendarDate(prev => { const d = new Date(prev); d.setMonth(d.getMonth() - 1); return d; });
+    setSelectedDay(null);
+  };
+  const nextMonth = () => {
+    setCalendarDate(prev => { const d = new Date(prev); d.setMonth(d.getMonth() + 1); return d; });
+    setSelectedDay(null);
+  };
+
+  // Build grid cells: blanks + days
+  const totalCells = startOffset + daysInMonth;
+  const rows = Math.ceil(totalCells / 7);
+
   return (
-    <div className="animate-fade-in flex flex-col gap-4 p-4 h-full">
+    <div className="animate-fade-in flex flex-col gap-4 h-full">
       {!isAdmin && (
         <button
           onClick={onCreateRes}
@@ -1042,12 +1100,146 @@ const MobileHomeView = ({
         />
       )}
 
-      <div className="glass-card-solid bg-black/5 rounded-2xl shadow-sm p-5">
-        <h2 className="select-none text-lg font-bold text-slate-800 dark:text-white mb-4">
-          {isAdmin ? 'Últimas reservas' : 'Mis reservas'}
-        </h2>
+      <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="select-none text-lg font-bold text-slate-800 dark:text-white">
+            {isAdmin ? 'Últimas reservas' : 'Mis reservas'}
+          </h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+              {displayedReservations.length} registros
+            </span>
+            <div className="flex items-center bg-slate-100 dark:bg-slate-700/60 rounded-xl p-1 gap-0.5">
+              <button
+                onClick={() => setViewMode('table')}
+                title="Vista lista"
+                className={`p-1.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary' : 'text-slate-400'}`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 6h18M3 14h18M3 18h18" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode('calendar')}
+                title="Vista calendario"
+                className={`p-1.5 rounded-lg transition-all ${viewMode === 'calendar' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary' : 'text-slate-400'}`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
         {loading ? (
           <div className="text-slate-400 text-center py-10 italic">Cargando...</div>
+        ) : viewMode === 'calendar' ? (
+          <div>
+            {/* Month navigation */}
+            <div className="flex items-center justify-between mb-3">
+              <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-500 dark:text-slate-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
+              </button>
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200 capitalize">
+                {MONTH_NAMES[calMonth]} {calYear}
+              </span>
+              <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-500 dark:text-slate-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </div>
+
+            {/* Day labels */}
+            <div className="grid grid-cols-7 mb-1">
+              {DAY_LABELS.map(l => (
+                <div key={l} className="text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 py-1">{l}</div>
+              ))}
+            </div>
+
+            {/* Day grid */}
+            <div className="grid grid-cols-7 gap-px bg-slate-200 dark:bg-slate-700 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+              {Array.from({ length: rows * 7 }).map((_, idx) => {
+                const day = idx - startOffset + 1;
+                const isValid = day >= 1 && day <= daysInMonth;
+                const dayDate = isValid ? new Date(calYear, calMonth, day) : null;
+                const isToday = isValid && dayDate.getTime() === today.getTime();
+                const isSelected = isValid && day === selectedDay;
+                const dayRes = isValid ? (dayResMap[day] ?? []) : [];
+                const hasRes = dayRes.length > 0;
+
+                return (
+                  <button
+                    key={idx}
+                    disabled={!isValid}
+                    onClick={() => isValid && setSelectedDay(day === selectedDay ? null : day)}
+                    className={`relative flex flex-col items-center pt-1.5 pb-1 min-h-[44px] transition-colors
+                      ${!isValid ? 'bg-slate-50 dark:bg-slate-900/40 cursor-default' :
+                        isSelected ? 'bg-primary/10 dark:bg-primary/20' :
+                        'bg-white dark:bg-slate-800/60 active:bg-slate-100 dark:active:bg-slate-700/60 cursor-pointer'}
+                    `}
+                  >
+                    {isValid && (
+                      <>
+                        <span className={`text-xs font-semibold leading-none mb-1 w-6 h-6 flex items-center justify-center rounded-full
+                          ${isToday ? 'bg-primary text-white' :
+                            isSelected ? 'text-primary font-bold' :
+                            'text-slate-700 dark:text-slate-200'}`}>
+                          {day}
+                        </span>
+                        {hasRes && (
+                          <div className="flex flex-wrap justify-center gap-[2px] max-w-full px-0.5">
+                            {dayRes.slice(0, 3).map((r, i) => (
+                              <span key={i} className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[r.status] ?? 'bg-slate-400'}`} />
+                            ))}
+                            {dayRes.length > 3 && <span className="text-[8px] text-slate-400 leading-none">+{dayRes.length - 3}</span>}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selected day detail */}
+            {selectedDay && (
+              <div className="mt-4 space-y-3">
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                  {selectedDay} {MONTH_NAMES[calMonth]} — {selectedDayRes.length} reserva{selectedDayRes.length !== 1 ? 's' : ''}
+                </p>
+                {selectedDayRes.length === 0 ? (
+                  <p className="text-slate-400 text-sm italic text-center py-4">Sin reservas este día</p>
+                ) : selectedDayRes.map(r => (
+                  <div key={r.id} className="bg-white dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700/50">
+                    <div className="flex justify-between items-start gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-800 dark:text-white text-sm truncate">{[r.brand, r.model].filter(Boolean).join(' ')}</p>
+                        {isAdmin && <p className="text-primary text-[10px] font-medium truncate">{r.username}</p>}
+                        <p className="text-[10px] font-mono text-slate-400">{r.license_plate}</p>
+                      </div>
+                      <span className={`chip-uniform px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
+                        {r.status}
+                      </span>
+                    </div>
+                    <div className="flex gap-4 text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+                      <span><span className="font-bold text-slate-400">Inicio </span>{formatDateTime(r.start_time)}</span>
+                      <span><span className="font-bold text-slate-400">Fin </span>{formatDateTime(r.end_time)}</span>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
+                      <button onClick={() => onEdit(r)} className="px-3 py-1.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-lg text-[11px] font-bold flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                        Editar
+                      </button>
+                      <button onClick={() => onDelete(r.id)} className="p-1.5 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-lg">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ) : displayedReservations.length === 0 ? (
           <div className="text-slate-400 text-center py-10 italic">No hay ninguna reserva</div>
         ) : (
@@ -1055,16 +1247,16 @@ const MobileHomeView = ({
             {paginatedReservations.map((r) => (
               <div
                 key={r.id}
-                className="glass-card rounded-2xl p-5 shadow-sm hover:bg-white/25 dark:hover:bg-white/10 transition-all group">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{r.model}</h3>
+                className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 shadow-[0_2px_8px_rgba(0,0,0,0.07)] dark:shadow-none hover:border-primary/50 dark:hover:border-primary/50 transition-all group">
+                <div className="flex justify-between items-start mb-4 gap-3 flex-wrap">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight truncate">{r.model}</h3>
                     {isAdmin && (
-                      <p className="text-primary font-medium text-xs mt-1">Usuario: {r.username}</p>
+                      <p className="text-primary font-medium text-xs mt-1 truncate">Usuario: {r.username}</p>
                     )}
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
                       {r.status}
                     </span>
                     {r.status === 'rechazada' && r.motivo_rechazo && (
@@ -1099,7 +1291,7 @@ const MobileHomeView = ({
                   </div>
                   <div className="text-xs font-mono text-slate-400 ml-7">{r.license_plate}</div>
                 </div>
-                <div className="flex items-center justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50 gap-2">
+                <div className="flex items-center justify-end pt-4 border-t border-slate-200 dark:border-slate-700/50 gap-2">
                   <button
                     onClick={() => onEdit(r)}
                     className="px-4 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl hover:bg-amber-100 transition-colors text-xs font-bold flex items-center gap-2">
@@ -1852,7 +2044,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const shouldScrollInicioForRole = activePage === 'inicio' && (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor' || currentUser.role === 'admin');
 
   return (
-    <div className="h-screen bg-[#F5F4F2] text-slate-900 dark:bg-white/10 dark:text-slate-100 flex flex-col md:flex-row transition-colors duration-300 overflow-hidden">
+    <div className="h-screen bg-[#DAD7D1] text-slate-900 dark:bg-black dark:text-slate-100 flex flex-col md:flex-row transition-colors duration-300 overflow-hidden">
       <Toaster
         position="top-center"
         toastOptions={{
@@ -2032,7 +2224,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
         )}
 
         {/* AREA DE TRABAJO */}
-        <section className={`${isMobile ? 'p-0' : 'p-8'} ${isGated || shouldScrollInicioForRole ? 'overflow-y-auto overflow-x-hidden custom-scrollbar' : 'overflow-hidden'} flex-1 flex flex-col relative`}>
+        <section className={`${isMobile ? 'p-3 pb-6' : 'p-8'} ${isGated || shouldScrollInicioForRole || isMobile ? 'overflow-y-auto overflow-x-hidden custom-scrollbar' : 'overflow-hidden'} flex-1 flex flex-col relative`}>
           {/* Capa de fondo con blur */}
           <div className="fixed inset-0 bg-center bg-no-repeat blur-[5px] scale-[1.05] -z-6 pointer-events-none opacity-40 dark:opacity-40" />
 

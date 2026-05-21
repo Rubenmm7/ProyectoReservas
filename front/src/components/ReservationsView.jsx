@@ -42,6 +42,13 @@ const STATUS_STYLES = {
     'pendiente': 'bg-amber-100 text-black border border-amber-200 dark:bg-amber-500/20 dark:text-white/90 dark:border-amber-500/30',
     'fecha': 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
+const STATUS_ICON = {
+    'aprobada':  { color: 'text-green-600 dark:text-green-400',  bg: 'bg-green-100 dark:bg-green-500/20',  svg: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"/></svg> },
+    'activa':    { color: 'text-blue-600 dark:text-blue-400',    bg: 'bg-blue-100 dark:bg-blue-500/20',    svg: <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> },
+    'finalizada':{ color: 'text-violet-600 dark:text-violet-400',bg: 'bg-violet-100 dark:bg-violet-500/20', svg: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
+    'rechazada': { color: 'text-red-600 dark:text-red-400',      bg: 'bg-red-100 dark:bg-red-500/20',      svg: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg> },
+    'pendiente': { color: 'text-amber-600 dark:text-amber-400',  bg: 'bg-amber-100 dark:bg-amber-500/20',  svg: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
+};
 
 const formatVehicleLabel = (vehicle = {}, includePlate = true) => {
     const brand = String(vehicle?.brand ?? '').trim();
@@ -373,6 +380,13 @@ export default function ReservationsView({
     const [userSearchTermDropdown, setUserSearchTermDropdown] = useState('');
     const [vehicleSearchTermDropdown, setVehicleSearchTermDropdown] = useState('');
     const [centreSearchTermDropdown, setCentreSearchTermDropdown] = useState('');
+
+    // View mode toggle
+    const [viewMode, setViewMode] = useState('table');
+    const [calendarDate, setCalendarDate] = useState(new Date());
+    const [calendarReservations, setCalendarReservations] = useState([]);
+    const [calendarLoading, setCalendarLoading] = useState(false);
+    const [mobileCalSelectedDay, setMobileCalSelectedDay] = useState(null);
 
     // Sorting & Filter State
     const [sortConfig, setSortConfig] = useState({ key: 'upcoming_start_time', direction: 'asc' });
@@ -795,6 +809,34 @@ export default function ReservationsView({
         }
     };
 
+    const fetchCalendarReservations = async (date) => {
+        setCalendarLoading(true);
+        try {
+            const year = date.getFullYear();
+            const month = date.getMonth();
+            const monthStart = toLocalISOString(new Date(year, month, 1));
+            const monthEnd = toLocalISOString(new Date(year, month + 1, 0, 23, 59, 59));
+            const effectiveStart = filterStartDate || monthStart;
+            const effectiveEnd = filterEndDate || monthEnd;
+            const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
+            const statusParam = filterStatus ? `&statusFilter=${encodeURIComponent(filterStatus)}` : '';
+            const response = await apiFetch(
+                `/api/dashboard/reservations?page=1&limit=500&startDate=${encodeURIComponent(effectiveStart)}&endDate=${encodeURIComponent(effectiveEnd)}${searchParam}${statusParam}`
+            );
+            if (response.ok) {
+                const data = await response.json();
+                const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+                setCalendarReservations(list);
+            } else {
+                setCalendarReservations([]);
+            }
+        } catch {
+            setCalendarReservations([]);
+        } finally {
+            setCalendarLoading(false);
+        }
+    };
+
     useEffect(() => {
         fetchCentres();
         fetchReservations();
@@ -807,6 +849,7 @@ export default function ReservationsView({
         // y marcarlas como finalizadas cuando superan su fecha fin.
         const intervalId = setInterval(() => {
             fetchReservations();
+            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
         }, 30000);
 
         // Cerrar dropdown al hacer click fuera
@@ -849,21 +892,25 @@ export default function ReservationsView({
                 return [reservation, ...prev];
             });
             fetchReservations();
+            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
         },
         onUpdatedReservation: (reservation, meta) => {
             if (meta.isSupervisor) return;
             if (recentlyCreatedByMeRef.current.has(String(reservation.id))) return;
             if (reservation.status === 'finalizada') {
                 fetchReservations();
+                if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
                 return;
             }
             if (!meta.isOwnReservation) return;
             fetchReservations();
+            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
         },
         onDeletedReservation: (data, meta) => {
             if (meta.isSupervisor) return;
             setReservations((prev) => prev.filter((r) => String(r.id) !== String(data.id)));
             fetchReservations();
+            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
         },
     });
 
@@ -973,10 +1020,17 @@ export default function ReservationsView({
         return () => observer.disconnect();
     }, [isMobile, visibleItems, reservations.length, currentPage, totalPages]);
 
+    useEffect(() => {
+        if (viewMode === 'calendar') {
+            fetchCalendarReservations(calendarDate);
+        }
+    }, [viewMode, calendarDate, searchTerm, filterStatus, filterStartDate, filterEndDate]);
+
     const handleQuickApprove = async (r) => {
         const ok = await updateReservationStatus(r, 'aprobada');
         if (ok) {
             await fetchReservations();
+            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
         } else {
             toast.error('Error al aprobar reserva');
         }
@@ -1004,6 +1058,7 @@ export default function ReservationsView({
                 setRejectModalReservation(null);
                 setRejectReason('');
                 await fetchReservations();
+                if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
             } else {
                 toast.error('Error al rechazar la reserva');
             }
@@ -1097,7 +1152,7 @@ export default function ReservationsView({
         return true;
     };
 
-    const handleOpenModal = async (reservation = null) => {
+    const handleOpenModal = async (reservation = null, prefillDate = null) => {
         setError('');
         setWizardStep(1);
         if (reservation) {
@@ -1129,7 +1184,12 @@ export default function ReservationsView({
             // Cargar opciones excluyendo la reserva actual para que el vehículo actual aparezca en la lista
             await fetchOptions(start, end, reservation.id);
         } else {
-            const defaultStart = getDefaultReservationStart();
+            let defaultStart = getDefaultReservationStart();
+            if (prefillDate) {
+                const base = new Date(prefillDate);
+                base.setHours(defaultStart.getHours(), defaultStart.getMinutes(), 0, 0);
+                defaultStart = base < new Date() ? (() => { const d = new Date(prefillDate); d.setHours(8, 0, 0, 0); return d; })() : base;
+            }
             const defaultEnd = getDefaultReservationEnd(defaultStart);
             setFormData({
                 ...INITIAL_FORM_STATE,
@@ -1249,6 +1309,7 @@ export default function ReservationsView({
             }
 
             await fetchReservations();
+            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
             handleCloseModal();
 
             if (onOperationComplete) onOperationComplete();
@@ -1285,6 +1346,7 @@ export default function ReservationsView({
             // Si era una reserva finalizada, NO sincronizar estados de vehículos
             // porque eso cambiaría el estado del vehículo incorrectamente
             await fetchReservations(isFinalized);
+            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
 
             if (onOperationComplete) onOperationComplete();
             if (shouldShowLocalSuccessToasts) {
@@ -1371,7 +1433,7 @@ export default function ReservationsView({
                                                                 if (!isUserDropdownOpen) setIsUserDropdownOpen(true);
                                                             }}
                                                             onClick={() => setIsUserDropdownOpen(true)}
-                                                            className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text"
+                                                            className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all shadow-sm hover:shadow-md cursor-text"
                                                         />
                                                         <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -1464,7 +1526,7 @@ export default function ReservationsView({
                                                                 if (!isCentreDropdownOpen) setIsCentreDropdownOpen(true);
                                                             }}
                                                             onClick={() => setIsCentreDropdownOpen(true)}
-                                                            className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text"
+                                                            className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all shadow-sm hover:shadow-md cursor-text"
                                                         />
                                                         <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -1563,7 +1625,7 @@ export default function ReservationsView({
                                                                             if (!isUserDropdownOpen) setIsUserDropdownOpen(true);
                                                                         }}
                                                                         onClick={() => setIsUserDropdownOpen(true)}
-                                                                        className="w-full px-4 py-2 pr-10 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all cursor-text"
+                                                                        className="w-full px-4 py-2 pr-10 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all cursor-text"
                                                                     />
                                                                     <svg className={`absolute right-3 w-4 h-4 pointer-events-none text-slate-400 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -1600,7 +1662,7 @@ export default function ReservationsView({
                                                                                 if (!isCentreDropdownOpen) setIsCentreDropdownOpen(true);
                                                                             }}
                                                                             onClick={() => setIsCentreDropdownOpen(true)}
-                                                                            className="w-full px-4 py-2 pr-10 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all cursor-text shadow-sm"
+                                                                            className="w-full px-4 py-2 pr-10 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all cursor-text shadow-sm"
                                                                         />
                                                                         <svg className={`absolute right-3 w-4 h-4 pointer-events-none text-slate-400 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -1642,7 +1704,7 @@ export default function ReservationsView({
                                                                     type="text"
                                                                     readOnly
                                                                     value={editCentreDisplayName}
-                                                                    className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300 cursor-not-allowed opacity-80"
+                                                                    className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 cursor-not-allowed outline-none focus:outline-none focus:ring-2 focus:ring-red-400/40 focus:border-red-400 select-none transition-all"
                                                                 />
                                                             )}
                                                         </div>
@@ -1661,7 +1723,7 @@ export default function ReservationsView({
                                                                         if (!isVehicleDropdownOpen) setIsVehicleDropdownOpen(true);
                                                                     }}
                                                                     onClick={() => setIsVehicleDropdownOpen(true)}
-                                                                    className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text font-medium"
+                                                                    className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all shadow-sm hover:shadow-md cursor-text font-medium"
                                                                 />
                                                                 <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isVehicleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -1715,7 +1777,7 @@ export default function ReservationsView({
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md capitalize"
+                                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md capitalize"
                                                             >
                                                                 <span className={!formData.status ? 'text-slate-400' : 'font-medium'}>
                                                                     {formData.status || 'Seleccionar estado...'}
@@ -1911,25 +1973,38 @@ export default function ReservationsView({
     }
 
     return (
-        <div className="relative flex-1 min-h-0 flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors overflow-hidden">
+        <div className={`relative flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors ${viewMode === 'calendar' ? `flex-shrink-0 min-h-[780px]${isMobile ? ' mb-16' : ''}` : 'flex-1 min-h-0 overflow-hidden'}`}>
             {isMobile ? (
                 // --- CABECERA MÓVIL ---
                 <div className="select-none flex flex-col gap-4 mb-6">
-                    {/* Fila 1: Título, Contador y Botón Agregar */}
+                    {/* Fila 1: Título (izquierda) + Contador + toggle (derecha) */}
                     <div className="flex items-center justify-between">
-                        <div className="flex flex-col gap-1">
-                            <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
-                            <span className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg w-fit">
-                                {totalRecords} Registros
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                                {totalRecords} registros
                             </span>
+                            <div className="flex items-center bg-slate-100 dark:bg-slate-700/60 rounded-xl p-1 gap-0.5">
+                                <button
+                                    onClick={() => setViewMode('table')}
+                                    title="Vista tabla"
+                                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary' : 'text-slate-400'}`}
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 6h18M3 14h18M3 18h18" />
+                                    </svg>
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('calendar')}
+                                    title="Vista calendario"
+                                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'calendar' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary' : 'text-slate-400'}`}
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
-                        <button
-                            onClick={() => handleOpenModal()}
-                            className="bg-primary hover:brightness-95 text-white px-4 py-2 rounded-2xl font-bold text-xs flex items-center transition-all shadow-lg shadow-primary/20 active:scale-95"
-                        >
-                            <span className="text-lg mr-1.5 leading-none">+</span>
-                            <span>Nueva</span>
-                        </button>
                     </div>
 
                     {/* Fila 2: Buscador */}
@@ -1944,7 +2019,7 @@ export default function ReservationsView({
                             placeholder="Buscar usuario, vehículo, matrícula o estado ..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
+                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all text-slate-700 dark:text-slate-200"
                         />
                     </div>
 
@@ -1964,12 +2039,13 @@ export default function ReservationsView({
                         />
                     </div>
 
-                    <div className="flex items-center justify-end">
+                    {/* Fila 4: Estado (izquierda) + Nueva reserva (derecha) */}
+                    <div className="flex items-center justify-between">
                         <button
                             onClick={cycleStatusFilter}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all border ${filterStatus
-                                ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
-                                : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:text-primary'
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${filterStatus
+                                ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
+                                : 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700'
                                 }`}
                             title={filterStatus ? `Filtrando por ${filterStatus}` : 'Filtrar por estado'}
                         >
@@ -1977,6 +2053,13 @@ export default function ReservationsView({
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M7 12h10M10 18h4" />
                             </svg>
+                        </button>
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="bg-primary hover:brightness-95 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
+                        >
+                            <span className="text-lg mr-1 leading-none">+</span>
+                            <span>Nueva</span>
                         </button>
                     </div>
 
@@ -1998,10 +2081,29 @@ export default function ReservationsView({
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
                         <div className="flex items-center gap-3">
+                            <div className="flex items-center bg-slate-100 dark:bg-slate-700/60 rounded-xl p-1 gap-0.5">
+                                <button
+                                    onClick={() => setViewMode('table')}
+                                    title="Vista tabla"
+                                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 6h18M3 14h18M3 18h18" />
+                                    </svg>
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('calendar')}
+                                    title="Vista calendario"
+                                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'calendar' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                </button>
+                            </div>
                             <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
                                 {totalRecords} Registros
                             </span>
-
                         </div>
                     </div>
 
@@ -2049,7 +2151,344 @@ export default function ReservationsView({
                 </div>
             )}
 
-            {loading ? (
+            {viewMode === 'calendar' ? (isMobile ? (() => {
+                const CAL_MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+                const CAL_DAYS_M = ["L","M","X","J","V","S","D"];
+                const calYear = calendarDate.getFullYear();
+                const calMonth = calendarDate.getMonth();
+                const pad2m = (n) => String(n).padStart(2, '0');
+                const todayM = new Date();
+                const isSameDayM = (a, b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+                const isTodayM = (dt) => isSameDayM(dt, todayM);
+                const firstDay = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+                const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+                const calCells = [];
+                for (let i = 0; i < firstDay; i++) calCells.push(new Date(calYear, calMonth, -(firstDay - i - 1)));
+                for (let d = 1; d <= daysInMonth; d++) calCells.push(new Date(calYear, calMonth, d));
+                while (calCells.length % 7 !== 0) calCells.push(new Date(calYear, calMonth + 1, calCells.length - firstDay - daysInMonth + 1));
+                const parsedM = calendarReservations.map(r => {
+                    const st = parseMySqlDateTime(r.start_time);
+                    const et = parseMySqlDateTime(r.end_time);
+                    if (!st || !et) return null;
+                    return { ...r, _start: st, _end: et };
+                }).filter(Boolean);
+                const getResosForDay = (day) => {
+                    const ds = new Date(day); ds.setHours(0,0,0,0);
+                    const de = new Date(day); de.setHours(23,59,59,999);
+                    return parsedM.filter(r => r._start <= de && r._end >= ds);
+                };
+                const STATUS_DOT = { pendiente:'bg-amber-400', aprobada:'bg-green-500', activa:'bg-blue-500', finalizada:'bg-violet-500', rechazada:'bg-red-500' };
+                const selectedResos = mobileCalSelectedDay ? getResosForDay(mobileCalSelectedDay) : [];
+                return (
+                    <div className="flex flex-col gap-4">
+                        {/* Navegación de mes */}
+                        <div className="flex items-center justify-between">
+                            <button onClick={() => { const d=new Date(calendarDate); d.setMonth(d.getMonth()-1); setCalendarDate(d); setMobileCalSelectedDay(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
+                                <FontAwesomeIcon icon={faChevronLeft} className="text-slate-600 dark:text-slate-300 text-sm" />
+                            </button>
+                            <span className="text-base font-bold text-slate-800 dark:text-white capitalize">{CAL_MONTHS[calMonth]} {calYear}</span>
+                            <button onClick={() => { const d=new Date(calendarDate); d.setMonth(d.getMonth()+1); setCalendarDate(d); setMobileCalSelectedDay(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
+                                <FontAwesomeIcon icon={faChevronRight} className="text-slate-600 dark:text-slate-300 text-sm" />
+                            </button>
+                        </div>
+                        {/* Cuadrícula */}
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                            <div className="grid grid-cols-7 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                                {CAL_DAYS_M.map(d => (
+                                    <div key={d} className="text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 py-2">{d}</div>
+                                ))}
+                            </div>
+                            {calendarLoading ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <div className="w-7 h-7 border-2 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin"></div>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-7">
+                                    {calCells.map((cellDate, idx) => {
+                                        const isCur = cellDate.getMonth() === calMonth;
+                                        const dayResos = isCur ? getResosForDay(cellDate) : [];
+                                        const isSelected = mobileCalSelectedDay && isSameDayM(cellDate, mobileCalSelectedDay);
+                                        return (
+                                            <div
+                                                key={idx}
+                                                onClick={() => { if (!isCur) return; setMobileCalSelectedDay(isSelected ? null : new Date(cellDate)); }}
+                                                className={`flex flex-col items-center py-2 px-1 min-h-[52px] border-r border-b border-slate-200 dark:border-slate-700 ${(idx % 7 === 6) ? 'border-r-0' : ''} ${isCur ? 'cursor-pointer' : 'opacity-30 pointer-events-none'} ${isSelected ? 'bg-primary/10 dark:bg-primary/20' : ''} transition-colors select-none`}
+                                            >
+                                                <span className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-semibold mb-1 ${isTodayM(cellDate) ? 'bg-primary text-white' : isSelected ? 'text-primary font-bold' : isCur ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'}`}>
+                                                    {cellDate.getDate()}
+                                                </span>
+                                                {dayResos.length > 0 && (
+                                                    <div className="flex gap-0.5 flex-wrap justify-center max-w-[28px]">
+                                                        {dayResos.slice(0, 3).map((r, i) => (
+                                                            <div key={i} className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[r.status] ?? 'bg-slate-400'}`} />
+                                                        ))}
+                                                        {dayResos.length > 3 && <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                        {/* Preview del día seleccionado */}
+                        {mobileCalSelectedDay && (
+                            <div className="animate-in slide-in-from-top-2 duration-200">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 capitalize">
+                                        {mobileCalSelectedDay.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                    </h3>
+                                    {!isEmployeeLikeUser(currentUser) && (
+                                        <button onClick={() => handleOpenModal(null, mobileCalSelectedDay)} className="text-xs font-bold text-primary flex items-center gap-1">
+                                            <span className="text-base leading-none">+</span> Añadir
+                                        </button>
+                                    )}
+                                </div>
+                                {selectedResos.length === 0 ? (
+                                    <div className="text-center py-8 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                                        <p className="text-slate-400 dark:text-slate-500 text-sm">Sin reservas este día</p>
+                                        {isEmployeeLikeUser(currentUser) && (
+                                            <button onClick={() => handleOpenModal(null, mobileCalSelectedDay)} className="mt-2 text-primary text-sm font-semibold">+ Nueva reserva</button>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {selectedResos.map(r => {
+                                            const startLabel = `${pad2m(r._start.getHours())}:${pad2m(r._start.getMinutes())}`;
+                                            const endLabel   = `${pad2m(r._end.getHours())}:${pad2m(r._end.getMinutes())}`;
+                                            return (
+                                                <div key={r.id} className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-bold text-slate-800 dark:text-white text-sm leading-tight">{formatVehicleLabel(r, false)}</p>
+                                                            {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && (
+                                                                <p className="text-xs text-primary font-medium mt-0.5 truncate">{r.username}</p>
+                                                            )}
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
+                                                                <FontAwesomeIcon icon={faClock} className="w-3 h-3" />
+                                                                {startLabel} – {endLabel}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex flex-col items-end gap-2 shrink-0">
+                                                            <span className={`chip-uniform px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600'}`}>
+                                                                {r.status}
+                                                            </span>
+                                                            {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || String(r.user_id) === String(currentUser.id)) && (
+                                                                <div className="flex gap-1">
+                                                                    <button onClick={() => handleOpenModal(r)} className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors">
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                                                    </button>
+                                                                    <button onClick={() => handleDeleteClick(r.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                );
+            })() : (() => {
+                const CAL_MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+                const CAL_DAYS = ["LUN","MAR","MIÉ","JUE","VIE","SÁB","DOM"];
+                const calYear = calendarDate.getFullYear();
+                const calMonth = calendarDate.getMonth();
+                const EVENT_BG_STYLE = {
+                    pendiente:  { bg: '#f59e0b', hover: '#d97706' },
+                    aprobada:   { bg: '#22c55e', hover: '#16a34a' },
+                    activa:     { bg: '#6366f1', hover: '#4f46e5' },
+                    finalizada: { bg: '#8b5cf6', hover: '#7c3aed' },
+                    rechazada:  { bg: '#ef4444', hover: '#dc2626' },
+                };
+                const pad2 = (n) => String(n).padStart(2, '0');
+
+                // Build grid cells (42 = 6 weeks × 7 days)
+                const firstDay = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+                const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+                const calCells = [];
+                for (let i = 0; i < firstDay; i++) {
+                    calCells.push(new Date(calYear, calMonth, -(firstDay - i - 1)));
+                }
+                for (let d = 1; d <= daysInMonth; d++) calCells.push(new Date(calYear, calMonth, d));
+                for (let i = 1; calCells.length < 42; i++) calCells.push(new Date(calYear, calMonth + 1, i));
+                const weeks = Array.from({ length: 6 }, (_, w) => calCells.slice(w * 7, w * 7 + 7));
+
+                const today = new Date();
+                const startOfDay = (dt) => { const d = new Date(dt); d.setHours(0,0,0,0); return d; };
+                const isSameDay = (a, b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+                const isToday = (dt) => isSameDay(dt, today);
+
+                // Parse all reservations once
+                const parsedReservations = calendarReservations.map(r => {
+                    const st = parseMySqlDateTime(r.start_time);
+                    const et = parseMySqlDateTime(r.end_time);
+                    if (!st || !et) return null;
+                    return {
+                        ...r,
+                        _start: st,
+                        _end: et,
+                        _startLabel: `${pad2(st.getHours())}:${pad2(st.getMinutes())}`,
+                        _endLabel: `${pad2(et.getHours())}:${pad2(et.getMinutes())}`,
+                    };
+                }).filter(Boolean);
+
+                // For each week row, compute which events appear and their column span
+                const EVENT_H = 22; // px per event row
+                const EVENT_GAP = 2;
+                const DAY_NUM_H = 28; // px reserved for day number
+
+                const weekRows = weeks.map((weekDays) => {
+                    const weekStart = startOfDay(weekDays[0]);
+                    const weekEnd = startOfDay(weekDays[6]);
+                    weekEnd.setHours(23, 59, 59, 999);
+
+                    // Find events that overlap this week
+                    const events = parsedReservations
+                        .filter(r => r._start <= weekEnd && r._end >= weekStart)
+                        .map(r => {
+                            const startCol = Math.max(0, weekDays.findIndex(d => isSameDay(d, r._start)));
+                            const rawStart = startOfDay(r._start);
+                            const adjStart = rawStart < weekStart ? 0 : weekDays.findIndex(d => isSameDay(d, r._start));
+                            const adjEnd = weekDays.reduce((acc, d, i) => startOfDay(r._end) >= startOfDay(d) ? i : acc, 0);
+                            return { ...r, startCol: Math.max(0, adjStart), endCol: Math.min(6, adjEnd) };
+                        })
+                        .sort((a, b) => a._start - b._start);
+
+                    // Lane assignment (greedy)
+                    const lanes = [];
+                    events.forEach(ev => {
+                        let placed = false;
+                        for (let i = 0; i < lanes.length; i++) {
+                            const overlaps = lanes[i].some(le => !(ev.endCol < le.startCol || ev.startCol > le.endCol));
+                            if (!overlaps) { lanes[i].push(ev); ev._lane = i; placed = true; break; }
+                        }
+                        if (!placed) { ev._lane = lanes.length; lanes.push([ev]); }
+                    });
+
+                    return { weekDays, events, laneCount: lanes.length };
+                });
+
+                return (
+                    <div className="flex flex-col pb-4" style={{ minHeight: '660px' }}>
+                        {/* Month navigation */}
+                        <div className="flex items-center justify-between mb-3 shrink-0">
+                            <button onClick={() => { const d = new Date(calendarDate); d.setMonth(d.getMonth() - 1); setCalendarDate(d); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-600 dark:text-slate-300 transition-colors">
+                                <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
+                            </button>
+                            <span className="text-sm font-bold text-slate-800 dark:text-white">{CAL_MONTHS[calMonth]} de {calYear}</span>
+                            <button onClick={() => { const d = new Date(calendarDate); d.setMonth(d.getMonth() + 1); setCalendarDate(d); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-600 dark:text-slate-300 transition-colors">
+                                <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
+                            </button>
+                        </div>
+
+                        {/* Day-of-week header */}
+                        <div className="grid grid-cols-7 shrink-0 border border-slate-300 dark:border-slate-600 rounded-t-xl overflow-hidden">
+                            {CAL_DAYS.map((d, i) => (
+                                <div key={d} className={`text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase py-2 bg-slate-100 dark:bg-slate-800 ${i < 6 ? 'border-r border-slate-300 dark:border-slate-600' : ''}`}>{d}</div>
+                            ))}
+                        </div>
+
+                        {calendarLoading ? (
+                            <div className="flex-1 flex items-center justify-center border border-t-0 border-slate-300 dark:border-slate-600 rounded-b-xl">
+                                <div className="w-8 h-8 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin"></div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col border border-t-0 border-slate-300 dark:border-slate-600 rounded-b-xl overflow-hidden">
+                                {weekRows.map(({ weekDays, events, laneCount }, wi) => {
+                                    const rowH = DAY_NUM_H + laneCount * (EVENT_H + EVENT_GAP) + 6;
+                                    return (
+                                        <div
+                                            key={wi}
+                                            className={`relative grid grid-cols-7 ${wi < 5 ? 'border-b border-slate-300 dark:border-slate-600' : ''}`}
+                                            style={{ minHeight: `${Math.max(rowH, 88)}px` }}
+                                        >
+                                            {/* Day cells (background + day number) */}
+                                            {weekDays.map((cellDate, di) => {
+                                                const isCur = cellDate.getMonth() === calMonth;
+                                                const dayStart = new Date(cellDate); dayStart.setHours(0,0,0,0);
+                                                const dayEnd = new Date(cellDate); dayEnd.setHours(23,59,59,999);
+                                                const blockedForEmployee = isEmployeeLikeUser(currentUser) && calendarReservations.some(r => {
+                                                    if (String(r.user_id) !== String(currentUser.id)) return false;
+                                                    if (r.status === 'rechazada' || r.status === 'finalizada') return false;
+                                                    const rs = parseMySqlDateTime(r.start_time);
+                                                    const re = parseMySqlDateTime(r.end_time);
+                                                    return rs && re && rs <= dayEnd && re >= dayStart;
+                                                });
+                                                const canCreate = isCur && !blockedForEmployee;
+                                                return (
+                                                    <div
+                                                        key={di}
+                                                        className={`group relative ${di < 6 ? 'border-r border-slate-300 dark:border-slate-600' : ''} ${isCur ? 'bg-white dark:bg-slate-800/60' : 'bg-slate-50 dark:bg-slate-900/40'} ${canCreate ? 'cursor-pointer' : ''} pt-1 pr-1.5`}
+                                                        onClick={(e) => {
+                                                            if (!canCreate) return;
+                                                            if (e.target.closest('button')) return;
+                                                            handleOpenModal(null, cellDate);
+                                                        }}
+                                                    >
+                                                        <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ml-auto ${isToday(cellDate) ? 'bg-primary text-white' : isCur ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-600'}`}>
+                                                            {cellDate.getDate()}
+                                                        </span>
+                                                        {canCreate && (
+                                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-700 pointer-events-none">
+                                                                <span className="w-7 h-7 rounded-full bg-primary/10 dark:bg-primary/20 text-primary flex items-center justify-center text-base font-bold leading-none">+</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {/* Event bars (absolutely positioned, spanning columns) */}
+                                            <div className="absolute inset-0 pointer-events-none" style={{ top: `${DAY_NUM_H}px` }}>
+                                                {events.map(ev => {
+                                                    const colW = 100 / 7;
+                                                    const left = ev.startCol * colW;
+                                                    const width = (ev.endCol - ev.startCol + 1) * colW;
+                                                    const top = ev._lane * (EVENT_H + EVENT_GAP);
+                                                    const color = (EVENT_BG_STYLE[ev.status] ?? EVENT_BG_STYLE.pendiente).bg;
+                                                    const isStartVisible = ev.startCol > 0 || ev._start >= startOfDay(weekDays[0]);
+                                                    const isEndVisible = ev.endCol < 6 || startOfDay(ev._end) <= startOfDay(weekDays[6]);
+                                                    return (
+                                                        <button
+                                                            key={ev.id + '-' + wi}
+                                                            onClick={(e) => { e.stopPropagation(); handleOpenModal(ev); }}
+                                                            className="absolute flex items-center pointer-events-auto text-white text-[10px] font-semibold leading-none hover:brightness-110 active:brightness-90 transition-all overflow-hidden group"
+                                                            style={{
+                                                                left: `calc(${left}% + 2px)`,
+                                                                width: `calc(${width}% - 4px)`,
+                                                                top: `${top}px`,
+                                                                height: `${EVENT_H}px`,
+                                                                backgroundColor: color,
+                                                                borderRadius: `${isStartVisible ? '5px' : '0'} ${isEndVisible ? '5px' : '0'} ${isEndVisible ? '5px' : '0'} ${isStartVisible ? '5px' : '0'}`,
+                                                                paddingLeft: isStartVisible ? '6px' : '2px',
+                                                                paddingRight: isEndVisible ? '6px' : '2px',
+                                                            }}
+                                                            title={`${formatVehicleLabel(ev)} — ${ev.username || ''} (${ev._startLabel} - ${ev._endLabel})`}
+                                                        >
+                                                            {isStartVisible && (
+                                                                <span className="shrink-0 opacity-90 mr-1">{ev._startLabel}</span>
+                                                            )}
+                                                            <span className="truncate flex-1">{formatVehicleLabel(ev, false)}</span>
+                                                            {isEndVisible && (
+                                                                <span className="shrink-0 opacity-90 ml-1">{ev._endLabel}</span>
+                                                            )}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                );
+            })()) : loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
                     <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin mb-4"></div>
                     <p className="italic">Cargando reservas...</p>
@@ -2064,7 +2503,7 @@ export default function ReservationsView({
                     {paginatedReservations.map((r) => (
                         <div
                             key={r.id}
-                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-primary/50 dark:hover:border-primary/50 transition-all group"
+                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 shadow-[0_2px_8px_rgba(0,0,0,0.07)] dark:shadow-none hover:border-primary/50 dark:hover:border-primary/50 transition-all group"
                         >
                             <div className="flex justify-between items-start mb-4">
                                 <div className="flex-1 min-w-0 pr-2">
@@ -2447,7 +2886,7 @@ export default function ReservationsView({
                                                         if (!isUserDropdownOpen) setIsUserDropdownOpen(true);
                                                     }}
                                                     onClick={() => setIsUserDropdownOpen(true)}
-                                                    className="select-none w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text"
+                                                    className="select-none w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all shadow-sm hover:shadow-md cursor-text"
                                                 />
                                                 <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -2504,7 +2943,7 @@ export default function ReservationsView({
                                                         if (!isCentreDropdownOpen) setIsCentreDropdownOpen(true);
                                                     }}
                                                     onClick={() => setIsCentreDropdownOpen(true)}
-                                                    className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text"
+                                                    className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all shadow-sm hover:shadow-md cursor-text"
                                                 />
                                                 <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -2586,7 +3025,7 @@ export default function ReservationsView({
                                                                     if (!isUserDropdownOpen) setIsUserDropdownOpen(true);
                                                                 }}
                                                                 onClick={() => setIsUserDropdownOpen(true)}
-                                                                className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text"
+                                                                className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all shadow-sm hover:shadow-md cursor-text"
                                                             />
                                                             <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -2624,7 +3063,7 @@ export default function ReservationsView({
                                                                         if (!isCentreDropdownOpen) setIsCentreDropdownOpen(true);
                                                                     }}
                                                                     onClick={() => setIsCentreDropdownOpen(true)}
-                                                                    className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text"
+                                                                    className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all shadow-sm hover:shadow-md cursor-text"
                                                                 />
                                                                 <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -2666,7 +3105,7 @@ export default function ReservationsView({
                                                             type="text"
                                                             readOnly
                                                             value={editCentreDisplayName}
-                                                            className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300 cursor-not-allowed opacity-80"
+                                                            className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 cursor-not-allowed outline-none focus:outline-none focus:ring-4 focus:ring-red-400/30 focus:border-red-400 select-none transition-all"
                                                         />
                                                     )}
                                                 </div>
@@ -2685,7 +3124,7 @@ export default function ReservationsView({
                                                                 if (!isVehicleDropdownOpen) setIsVehicleDropdownOpen(true);
                                                             }}
                                                             onClick={() => setIsVehicleDropdownOpen(true)}
-                                                            className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text font-medium"
+                                                            className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all shadow-sm hover:shadow-md cursor-text font-medium"
                                                         />
                                                         <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isVehicleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -2694,7 +3133,7 @@ export default function ReservationsView({
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsVehicleDropdownOpen(!isVehicleDropdownOpen)}
-                                                        className="hidden w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
+                                                        className="hidden w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
                                                     >
                                                         <span className={!formData.vehicle_id ? 'text-slate-400' : 'font-medium'}>
                                                             {formData.vehicle_id
@@ -2755,7 +3194,7 @@ export default function ReservationsView({
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                                                        className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md capitalize"
+                                                        className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md capitalize"
                                                     >
                                                         <span className={!formData.status ? 'text-slate-400' : 'font-medium'}>
                                                             {formData.status || 'Seleccionar estado...'}
@@ -2822,41 +3261,45 @@ export default function ReservationsView({
                                                 )}
                                             </h4>
                                             <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 shadow-sm">
-                                                <div className="overflow-x-auto custom-scrollbar">
-                                                    <table className="w-full text-sm text-left border-collapse">
-                                                        <thead className="bg-slate-50 dark:bg-slate-800">
-                                                            <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider font-bold">
-                                                                <th className="py-3 px-4 text-center">Vehículo / Matrícula</th>
-                                                                <th className="py-3 px-4 text-center">Usuario</th>
-                                                                <th className="py-3 px-4 text-center">Estado</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {paginatedModalReservations.length > 0 ? (
-                                                                paginatedModalReservations.map(reservation => (
-                                                                    <tr key={reservation.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                                                        <td className="py-3.5 px-4 text-center text-slate-700 dark:text-slate-200 font-medium">
-                                                                            {formatVehicleLabel(reservation)}
-                                                                        </td>
-                                                                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
-                                                                            {reservation.username}
-                                                                        </td>
-                                                                        <td className="py-3 px-4 text-center">
-                                                                            <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[reservation.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
-                                                                                {reservation.status}
-                                                                            </span>
-                                                                        </td>
-                                                                    </tr>
-                                                                ))
-                                                            ) : (
-                                                                <tr>
-                                                                    <td colSpan="3" className="py-8 text-center text-slate-400 italic bg-white dark:bg-slate-900/50">
-                                                                        No hay reservas vigentes actualmente
-                                                                    </td>
-                                                                </tr>
-                                                            )}
-                                                        </tbody>
-                                                    </table>
+                                                <div className="p-3 flex flex-col gap-2">
+                                                    {paginatedModalReservations.length > 0 ? (
+                                                        paginatedModalReservations.map(reservation => {
+                                                            const si = STATUS_ICON[reservation.status];
+                                                            return (
+                                                            <div key={reservation.id} className="flex items-center gap-3 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-3 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                                                <div className="shrink-0 w-9 h-9 rounded-xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center">
+                                                                    <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 17H5a2 2 0 01-2-2V9a2 2 0 012-2h1l2-3h8l2 3h1a2 2 0 012 2v6a2 2 0 01-2 2h-3m-6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+                                                                    </svg>
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-snug">
+                                                                        {formatVehicleLabel(reservation)}
+                                                                    </p>
+                                                                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-1">
+                                                                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                                        </svg>
+                                                                        {reservation.username}
+                                                                    </p>
+                                                                </div>
+                                                                {si ? (
+                                                                    <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${si.bg} ${si.color}`} title={reservation.status}>
+                                                                        {si.svg}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className={`chip-uniform shrink-0 px-2 py-1 rounded-full text-[10px] font-semibold capitalize ${STATUS_STYLES[reservation.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
+                                                                        {reservation.status}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            );
+                                                        })
+                                                    ) : (
+                                                        <div className="py-8 text-center text-slate-400 italic text-sm">
+                                                            No hay reservas vigentes actualmente
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 {/* Paginación de la tabla del modal */}

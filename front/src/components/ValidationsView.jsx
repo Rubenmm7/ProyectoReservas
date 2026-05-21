@@ -1348,7 +1348,7 @@ const ValidationsView = () => {
               {paginatedValidations.map((v) => (
                 <div
                   key={v.id}
-                  className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-primary/50 dark:hover:border-primary/80 transition-all group"
+                  className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 shadow-[0_2px_8px_rgba(0,0,0,0.07)] dark:shadow-none hover:border-primary/50 dark:hover:border-primary/80 transition-all group"
                 >
                   <div className="flex justify-between items-start mb-4">
                     <div className="min-w-0 flex-1 pr-3">

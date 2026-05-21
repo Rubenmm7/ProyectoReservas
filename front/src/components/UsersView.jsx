@@ -429,7 +429,7 @@ const UsersView = ({ onModalChange }) => {
                     {paginatedUsers.map((u) => (
                         <div
                             key={u.id}
-                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-primary/50 dark:hover:border-primary/50 transition-all group"
+                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 shadow-[0_2px_8px_rgba(0,0,0,0.07)] dark:shadow-none hover:border-primary/50 dark:hover:border-primary/50 transition-all group"
                         >
                             <div className="flex justify-between items-center mb-4">
                                 <div className="flex items-center gap-3">
@@ -651,7 +651,7 @@ const UsersView = ({ onModalChange }) => {
                                     <input
                                         type="text"
                                         required
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all"
                                         placeholder="ej. Usuario123"
                                         maxLength={20}
                                         value={formData.username}
@@ -666,7 +666,7 @@ const UsersView = ({ onModalChange }) => {
                                     <input
                                         type="password"
                                         required={!editingId}
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all"
                                         placeholder="••••••••"
                                         maxLength={20}
                                         value={formData.password}
@@ -701,7 +701,7 @@ const UsersView = ({ onModalChange }) => {
                                         <button
                                             type="button"
                                             onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center capitalize"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all flex justify-between items-center capitalize"
                                         >
                                             <span className={!formData.role ? 'text-slate-400' : ''}>
                                                 {formData.role || 'Seleccionar rol...'}
@@ -749,7 +749,7 @@ const UsersView = ({ onModalChange }) => {
                                                 setIsCentreDropdownOpen(!isCentreDropdownOpen);
                                                 if (!isCentreDropdownOpen) setCentreSearchTerm('');
                                             }}
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all flex justify-between items-center"
                                         >
                                             <span className={formData.centre_ids.length === 0 ? 'text-slate-400' : ''}>
                                                 {formData.centre_ids.length === 0
@@ -772,7 +772,7 @@ const UsersView = ({ onModalChange }) => {
                                                             placeholder="Buscar centro..."
                                                             value={centreSearchTerm}
                                                             onChange={(e) => setCentreSearchTerm(e.target.value)}
-                                                            className="w-full pl-8 pr-4 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-700 dark:text-slate-200"
+                                                            className="w-full pl-8 pr-4 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all text-slate-700 dark:text-slate-200"
                                                             autoFocus
                                                         />
                                                         <svg className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

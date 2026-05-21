@@ -596,32 +596,12 @@ const CentersView = ({ onModalChange }) => {
             {/* CABECERA */}
             {isMobile ? (
                 <div className="select-none flex flex-col gap-4 mb-6 shrink-0">
+                    {/* Fila 1: Título (izquierda) + Contador (derecha) */}
                     <div className="flex items-center justify-between">
-                        <div className="flex flex-col gap-1">
-                            <h2 className="text-lg font-bold text-slate-800 dark:text-white">Centros</h2>
-                            <span className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg w-fit">
-                                {totalRecords} Registros
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={handleSyncCentres}
-                                disabled={syncLoading}
-                                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-2 rounded-2xl font-bold text-xs flex items-center transition-all disabled:opacity-50 active:scale-95 border border-slate-200 dark:border-slate-700"
-                                title="Sincronizar con UnificaPP"
-                            >
-                                <svg className={`w-4 h-4 ${syncLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                            </button>
-                            <button
-                                onClick={() => handleOpenModal()}
-                                className="bg-primary hover:brightness-95 text-white px-4 py-2 rounded-2xl font-bold text-xs flex items-center transition-all shadow-lg shadow-primary/20 active:scale-95"
-                            >
-                                <span className="text-lg mr-1.5 leading-none">+</span>
-                                <span>Añadir</span>
-                            </button>
-                        </div>
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Centros</h2>
+                        <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                            {totalRecords} registros
+                        </span>
                     </div>
                     <div className="relative w-full">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -634,8 +614,29 @@ const CentersView = ({ onModalChange }) => {
                             placeholder="Buscar por nombre, provincia, localidad..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
+                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all text-slate-700 dark:text-slate-200"
                         />
+                    </div>
+                    {/* Fila 3: Sincronizar (izquierda) + Añadir (derecha) */}
+                    <div className="flex items-center justify-between">
+                        <button
+                            onClick={handleSyncCentres}
+                            disabled={syncLoading}
+                            className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-all disabled:opacity-50 active:scale-95 border border-slate-200 dark:border-slate-700"
+                            title="Sincronizar con UnificaPP"
+                        >
+                            <svg className={`w-4 h-4 ${syncLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span>Sincronizar</span>
+                        </button>
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="bg-primary hover:brightness-95 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
+                        >
+                            <span className="text-lg mr-1 leading-none">+</span>
+                            <span>Añadir</span>
+                        </button>
                     </div>
                 </div>
             ) : (
@@ -702,7 +703,7 @@ const CentersView = ({ onModalChange }) => {
                     {paginatedCentres.map((c) => (
                         <div
                             key={c.id}
-                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-primary/50 dark:hover:border-primary/50 transition-all"
+                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 shadow-[0_2px_8px_rgba(0,0,0,0.07)] dark:shadow-none hover:border-primary/50 dark:hover:border-primary/50 transition-all"
                         >
                             {/* Cabecera tarjeta */}
                             <div className="flex justify-between items-start mb-3">
@@ -956,11 +957,11 @@ const CentersView = ({ onModalChange }) => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre del centro</label>
-                                    <input type="text" required maxLength={100} value={formData.nombre} onChange={e => setFormData({ ...formData, nombre: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" required maxLength={100} value={formData.nombre} onChange={e => setFormData({ ...formData, nombre: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">ID Unifica</label>
-                                    <input type="text" maxLength={20} value={formData.id_unifica} onChange={e => setFormData({ ...formData, id_unifica: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" maxLength={20} value={formData.id_unifica} onChange={e => setFormData({ ...formData, id_unifica: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Código Postal</label>
@@ -985,15 +986,15 @@ const CentersView = ({ onModalChange }) => {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Provincia</label>
-                                    <input type="text" maxLength={60} value={formData.provincia} onChange={e => setFormData({ ...formData, provincia: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" maxLength={60} value={formData.provincia} onChange={e => setFormData({ ...formData, provincia: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Localidad</label>
-                                    <input type="text" maxLength={80} value={formData.localidad} onChange={e => setFormData({ ...formData, localidad: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" maxLength={80} value={formData.localidad} onChange={e => setFormData({ ...formData, localidad: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all" />
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Dirección</label>
-                                    <input type="text" maxLength={150} value={formData.direccion} onChange={e => setFormData({ ...formData, direccion: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" maxLength={150} value={formData.direccion} onChange={e => setFormData({ ...formData, direccion: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all" />
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Teléfono</label>

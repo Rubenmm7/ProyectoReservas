@@ -1,11 +1,12 @@
 import { apiFetch } from '../utils/http';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { useAdaptiveTableRowHeight } from '../hooks/useAdaptiveTableRowHeight';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faChevronRight, faCalendarAlt, faFilePdf, faEye, faDownload, faXmark, faExpand } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faChevronRight, faCalendarAlt, faFilePdf, faEye, faDownload, faXmark, faExpand, faCheck } from '@fortawesome/free-solid-svg-icons';
+import { Listbox, Transition } from '@headlessui/react';
 import DatePickerCalendar from './DatePickerCalendar';
 import { validateSpanishPlate, filterPlateInput } from '../utils/licensePlateValidator';
 import { normalizeSearchText } from '../utils/reservationsViewHelpers';
@@ -163,6 +164,135 @@ const isDocumentExpired = (expirationDate) => {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     return docDate < todayStart;
+};
+
+const VehicleFilterSelect = ({ value, onChange, options, placeholder }) => {
+    const selectedOption = options.find((o) => o.value === value) || options[0];
+    const containerRef = useRef(null);
+    const [alignRight, setAlignRight] = useState(false);
+
+    const handleButtonClick = () => {
+        if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            setAlignRight(window.innerWidth - rect.left < 260);
+        }
+    };
+
+    return (
+        <Listbox value={value} onChange={onChange}>
+            {({ open }) => (
+                <div ref={containerRef} className="relative flex-1 min-w-[120px]">
+                    <Listbox.Button
+                        onClick={handleButtonClick}
+                        className="w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/90 dark:bg-slate-900/50 px-3 py-1.5 text-left shadow-sm transition-all hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary backdrop-blur"
+                    >
+                        <div className="min-w-0">
+                            <p className={`truncate text-sm font-semibold ${value ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}`}>
+                                {selectedOption?.label ?? placeholder}
+                            </p>
+                        </div>
+                    </Listbox.Button>
+                    <Transition
+                        as={Fragment}
+                        leave="transition ease-in duration-100"
+                        leaveFrom="opacity-100 translate-y-0"
+                        leaveTo="opacity-0 translate-y-1"
+                    >
+                        <Listbox.Options className={`absolute z-50 mt-2 max-h-72 min-w-full w-max max-w-[260px] overflow-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-2 shadow-2xl ring-1 ring-black/5 focus:outline-none ${alignRight ? 'right-0' : 'left-0'}`}>
+                            {options.map((option) => (
+                                <Listbox.Option
+                                    key={option.value}
+                                    value={option.value}
+                                    className={({ active, selected }) =>
+                                        `cursor-pointer px-3 py-2 mx-2 rounded-xl transition-colors ${active ? 'bg-primary/10 text-primary-700 dark:text-primary-300' : 'text-slate-700 dark:text-slate-300'} ${selected ? 'font-semibold' : 'font-medium'}`
+                                    }
+                                >
+                                    {({ selected }) => (
+                                        <div className="flex items-center justify-between gap-3">
+                                            <span className="whitespace-nowrap">{option.label}</span>
+                                            {selected && value !== '' && <FontAwesomeIcon icon={faCheck} className="text-primary dark:text-primary-400 text-xs" />}
+                                        </div>
+                                    )}
+                                </Listbox.Option>
+                            ))}
+                        </Listbox.Options>
+                    </Transition>
+                </div>
+            )}
+        </Listbox>
+    );
+};
+
+const FormSelect = ({ value, onChange, options, placeholder, searchable = false }) => {
+    const [query, setQuery] = useState('');
+    const selectedOption = options.find(o => o.value === value);
+
+    const filtered = searchable && query
+        ? options.filter(o => normalizeSearchText(o.label).includes(normalizeSearchText(query)))
+        : options;
+
+    return (
+        <Listbox value={value} onChange={onChange}>
+            {({ open }) => (
+                <div className="relative">
+                    <Listbox.Button
+                        onClick={() => setQuery('')}
+                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-left text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all flex justify-between items-center gap-2"
+                    >
+                        <span className={`flex-1 truncate ${!value && placeholder ? 'text-slate-400 dark:text-slate-500' : ''}`}>
+                            {selectedOption?.label || placeholder || ''}
+                        </span>
+                        <svg className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </Listbox.Button>
+                    <Transition
+                        as={Fragment}
+                        leave="transition ease-in duration-100"
+                        leaveFrom="opacity-100"
+                        leaveTo="opacity-0"
+                    >
+                        <Listbox.Options className="absolute z-[60] mt-1 w-full max-h-64 overflow-auto rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-2xl focus:outline-none py-1">
+                            {searchable && (
+                                <div className="px-2 pt-2 pb-1 sticky top-0 bg-white dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600">
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar..."
+                                        value={query}
+                                        onChange={e => setQuery(e.target.value)}
+                                        onClick={e => e.stopPropagation()}
+                                        onMouseDown={e => e.stopPropagation()}
+                                        className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none text-slate-700 dark:text-slate-200 placeholder-slate-400"
+                                    />
+                                </div>
+                            )}
+                            {filtered.length === 0 ? (
+                                <div className="px-4 py-3 text-xs text-slate-500 italic text-center">Sin resultados</div>
+                            ) : (
+                                filtered.map(option => (
+                                    <Listbox.Option
+                                        key={option.value}
+                                        value={option.value}
+                                        className={({ active }) =>
+                                            `cursor-pointer px-4 py-2.5 text-sm flex items-center justify-between transition-colors
+                                            ${active ? 'bg-primary/10 text-primary dark:text-primary-300' : 'text-slate-700 dark:text-slate-200'}`
+                                        }
+                                    >
+                                        {({ selected }) => (
+                                            <>
+                                                <span className={selected ? 'font-medium' : ''}>{option.label}</span>
+                                                {selected && value && <FontAwesomeIcon icon={faCheck} className="text-primary text-xs flex-shrink-0" />}
+                                            </>
+                                        )}
+                                    </Listbox.Option>
+                                ))
+                            )}
+                        </Listbox.Options>
+                    </Transition>
+                </div>
+            )}
+        </Listbox>
+    );
 };
 
 const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
@@ -961,7 +1091,30 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                             />
                         </div>
 
-                        <div className="flex-1 flex justify-end gap-6">
+                        {(() => {
+                            const hasActiveFilters = brandFilter !== '' || vehicleTypeFilter !== '' || energyTypeFilter !== '' || fuelLevelFilter !== '' || seatsMinFilter !== '' || seatsMaxFilter !== '' || trunkMinFilter !== '' || trunkMaxFilter !== '' || searchTerm !== '';
+                            return hasActiveFilters ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setBrandFilter('');
+                                        setVehicleTypeFilter('');
+                                        setEnergyTypeFilter('');
+                                        setFuelLevelFilter('');
+                                        setSeatsMinFilter('');
+                                        setSeatsMaxFilter('');
+                                        setTrunkMinFilter('');
+                                        setTrunkMaxFilter('');
+                                        setSearchTerm('');
+                                    }}
+                                    className="px-3 py-2 text-xs rounded-xl border transition-colors whitespace-nowrap border-red-500 bg-red-50 text-red-600 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40"
+                                >
+                                    Limpiar filtros
+                                </button>
+                            ) : null;
+                        })()}
+
+                        <div className="flex items-center ml-auto gap-6">
                             <button
                                 onClick={() => {
                                     setOptionsFilter('all');
@@ -995,101 +1148,71 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             )}
 
             {(!isMobile || isMobileFiltersOpen) && (
-            <div ref={mobileFiltersRef} className={`mb-4 flex flex-wrap items-end gap-3${isMobile ? ' pt-3 border-t border-slate-100 dark:border-slate-700/50' : ''}`}>
-                <select
-                    value={brandFilter}
-                    onChange={(e) => setBrandFilter(e.target.value)}
-                    className="min-w-[160px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
-                >
-                    <option value="">Todas las marcas</option>
-                    {BRAND_OPTIONS.map((brand) => (
-                        <option key={brand} value={brand}>{brand}</option>
-                    ))}
-                </select>
-                <select
-                    value={vehicleTypeFilter}
-                    onChange={(e) => setVehicleTypeFilter(e.target.value)}
-                    className="min-w-[160px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
-                >
-                    <option value="">Todos los tipos</option>
-                    {VEHICLE_TYPE_OPTIONS.map((type) => (
-                        <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
-                    ))}
-                </select>
-                <select
-                    value={energyTypeFilter}
-                    onChange={(e) => setEnergyTypeFilter(e.target.value)}
-                    className="min-w-[150px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
-                >
-                    <option value="">Todas las energías</option>
-                    {ENERGY_TYPE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                </select>
-                <select
-                    value={fuelLevelFilter}
-                    onChange={(e) => setFuelLevelFilter(e.target.value)}
-                    className="min-w-[170px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
-                >
-                    <option value="">Combustible / batería</option>
-                    {FUEL_LEVEL_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                </select>
-
-                <input
-                    type="number"
-                    min="1"
-                    value={seatsMinFilter}
-                    onChange={(e) => setSeatsMinFilter(e.target.value)}
-                    placeholder="Plazas mín."
-                    className="w-28 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
-                />
-                <input
-                    type="number"
-                    min="1"
-                    value={seatsMaxFilter}
-                    onChange={(e) => setSeatsMaxFilter(e.target.value)}
-                    placeholder="Plazas máx."
-                    className="w-28 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
-                />
-                <input
-                    type="number"
-                    min="0"
-                    value={trunkMinFilter}
-                    onChange={(e) => setTrunkMinFilter(e.target.value)}
-                    placeholder="Maletero mín."
-                    className="w-32 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
-                />
-                <input
-                    type="number"
-                    min="0"
-                    value={trunkMaxFilter}
-                    onChange={(e) => setTrunkMaxFilter(e.target.value)}
-                    placeholder="Maletero máx."
-                    className="w-32 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none"
-                />
-                {(() => {
-                    const hasActiveFilters = brandFilter !== '' || vehicleTypeFilter !== '' || energyTypeFilter !== '' || fuelLevelFilter !== '' || seatsMinFilter !== '' || seatsMaxFilter !== '' || trunkMinFilter !== '' || trunkMaxFilter !== '';
-                    return (
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setBrandFilter('');
-                                setVehicleTypeFilter('');
-                                setEnergyTypeFilter('');
-                                setFuelLevelFilter('');
-                                setSeatsMinFilter('');
-                                setSeatsMaxFilter('');
-                                setTrunkMinFilter('');
-                                setTrunkMaxFilter('');
-                            }}
-                            className={`px-3 py-2 rounded-xl border transition-colors ${hasActiveFilters ? 'border-red-500 bg-red-50 text-red-600 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-                        >
-                            Limpiar filtros
-                        </button>
-                    );
-                })()}
+            <div ref={mobileFiltersRef} className={`mb-2 flex flex-wrap items-center gap-1.5${isMobile ? ' pt-3 border-t border-slate-100 dark:border-slate-700/50' : ''}`}>
+                    <VehicleFilterSelect
+                        value={brandFilter}
+                        onChange={setBrandFilter}
+                        placeholder="Todas las marcas"
+                        options={[
+                            { value: '', label: 'Todas las marcas' },
+                            ...BRAND_OPTIONS.map((b) => ({ value: b, label: b })),
+                        ]}
+                    />
+                    <VehicleFilterSelect
+                        value={vehicleTypeFilter}
+                        onChange={setVehicleTypeFilter}
+                        placeholder="Todos los tipos"
+                        options={[
+                            { value: '', label: 'Todos los tipos' },
+                            ...VEHICLE_TYPE_OPTIONS.map((t) => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) })),
+                        ]}
+                    />
+                    <VehicleFilterSelect
+                        value={energyTypeFilter}
+                        onChange={setEnergyTypeFilter}
+                        placeholder="Todas las energías"
+                        options={[{ value: '', label: 'Todas las energías' }, ...ENERGY_TYPE_OPTIONS]}
+                    />
+                    <VehicleFilterSelect
+                        value={fuelLevelFilter}
+                        onChange={setFuelLevelFilter}
+                        placeholder="Combustible / batería"
+                        options={[{ value: '', label: 'Combustible / batería' }, ...FUEL_LEVEL_OPTIONS]}
+                    />
+                <div className="flex flex-1 flex-wrap items-center gap-1.5">
+                    <input
+                        type="number"
+                        min="1"
+                        value={seatsMinFilter}
+                        onChange={(e) => setSeatsMinFilter(e.target.value)}
+                        placeholder="Plazas mín."
+                        className="flex-1 min-w-[80px] px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none"
+                    />
+                    <input
+                        type="number"
+                        min="1"
+                        value={seatsMaxFilter}
+                        onChange={(e) => setSeatsMaxFilter(e.target.value)}
+                        placeholder="Plazas máx."
+                        className="flex-1 min-w-[80px] px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none"
+                    />
+                    <input
+                        type="number"
+                        min="0"
+                        value={trunkMinFilter}
+                        onChange={(e) => setTrunkMinFilter(e.target.value)}
+                        placeholder="Maletero mín."
+                        className="flex-1 min-w-[90px] px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none"
+                    />
+                    <input
+                        type="number"
+                        min="0"
+                        value={trunkMaxFilter}
+                        onChange={(e) => setTrunkMaxFilter(e.target.value)}
+                        placeholder="Maletero máx."
+                        className="flex-1 min-w-[90px] px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none"
+                    />
+                </div>
             </div>
             )}
 
@@ -1113,7 +1236,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                     {paginatedVehicles.map((v) => (
                         <div
                             key={v.id}
-                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-primary/50 dark:hover:border-primary/50 transition-all group"
+                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 shadow-[0_2px_8px_rgba(0,0,0,0.07)] dark:shadow-none hover:border-primary/50 dark:hover:border-primary/50 transition-all group"
                         >
                             <div className="flex justify-between items-start mb-4">
                                 <div>
@@ -1457,7 +1580,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                         type="text"
                                         required
                                         maxLength="60"
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all"
                                         placeholder="Ford Transit"
                                         value={formData.model}
                                         onChange={e => setFormData({ ...formData, model: e.target.value })}
@@ -1467,30 +1590,24 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Marca</label>
-                                        <select
-                                            required
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                                        <FormSelect
                                             value={formData.brand}
-                                            onChange={e => setFormData({ ...formData, brand: e.target.value })}
-                                        >
-                                            <option value="">Seleccionar marca...</option>
-                                            {BRAND_OPTIONS.map((brand) => (
-                                                <option key={brand} value={brand}>{brand}</option>
-                                            ))}
-                                        </select>
+                                            onChange={val => setFormData({ ...formData, brand: val })}
+                                            placeholder="Seleccionar marca..."
+                                            searchable
+                                            options={[
+                                                { value: '', label: 'Seleccionar marca...' },
+                                                ...BRAND_OPTIONS.map(b => ({ value: b, label: b })),
+                                            ]}
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo de vehículo</label>
-                                        <select
-                                            required
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                                        <FormSelect
                                             value={formData.vehicle_type}
-                                            onChange={e => setFormData({ ...formData, vehicle_type: e.target.value })}
-                                        >
-                                            {VEHICLE_TYPE_OPTIONS.map((type) => (
-                                                <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
-                                            ))}
-                                        </select>
+                                            onChange={val => setFormData({ ...formData, vehicle_type: val })}
+                                            options={VEHICLE_TYPE_OPTIONS.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))}
+                                        />
                                     </div>
                                 </div>
 
@@ -1502,7 +1619,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                             required
                                             min="1"
                                             max="99"
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all"
                                             value={formData.seats}
                                             onChange={e => setFormData({ ...formData, seats: e.target.value === '' ? '' : parseInt(e.target.value, 10) })}
                                         />
@@ -1513,7 +1630,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                             type="number"
                                             min="0"
                                             max="99999"
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all"
                                             placeholder="Opcional"
                                             value={formData.trunk_capacity_l}
                                             onChange={e => setFormData({ ...formData, trunk_capacity_l: e.target.value })}
@@ -1521,29 +1638,19 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Energía</label>
-                                        <select
-                                            required
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                                        <FormSelect
                                             value={formData.energy_type}
-                                            onChange={e => setFormData({ ...formData, energy_type: e.target.value })}
-                                        >
-                                            {ENERGY_TYPE_OPTIONS.map(option => (
-                                                <option key={option.value} value={option.value}>{option.label}</option>
-                                            ))}
-                                        </select>
+                                            onChange={val => setFormData({ ...formData, energy_type: val })}
+                                            options={ENERGY_TYPE_OPTIONS}
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Combustible / batería</label>
-                                        <select
-                                            required
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                                        <FormSelect
                                             value={formData.fuel_level}
-                                            onChange={e => setFormData({ ...formData, fuel_level: e.target.value })}
-                                        >
-                                            {FUEL_LEVEL_OPTIONS.map(option => (
-                                                <option key={option.value} value={option.value}>{option.label}</option>
-                                            ))}
-                                        </select>
+                                            onChange={val => setFormData({ ...formData, fuel_level: val })}
+                                            options={FUEL_LEVEL_OPTIONS}
+                                        />
                                     </div>
                                 </div>
 
@@ -1554,7 +1661,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                             <button
                                                 type="button"
                                                 onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                                                className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center"
+                                                className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all flex justify-between items-center"
                                             >
                                                 <span className={!formData.status ? 'text-slate-400' : ''}>
                                                     {STATUS_LABELS[formData.status] || 'Seleccionar estado...'}
@@ -1602,7 +1709,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                             required
                                             min="0"
                                             max="15000000"
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all"
                                             placeholder="0"
                                             value={formData.kilometers === 0 ? '' : formData.kilometers}
                                             onChange={e => {
@@ -1624,7 +1731,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                                 setIsCentreDropdownOpen(!isCentreDropdownOpen);
                                                 if (!isCentreDropdownOpen) setCentreSearchTerm('');
                                             }}
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all flex justify-between items-center"
                                         >
                                             <span className={!formData.centre_id ? 'text-slate-400' : ''}>
                                                 {centres.find(c => c.id === formData.centre_id)?.nombre || 'Seleccionar centro...'}
@@ -1643,7 +1750,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                                             placeholder="Buscar centro..."
                                                             value={centreSearchTerm}
                                                             onChange={(e) => setCentreSearchTerm(e.target.value)}
-                                                            className="w-full pl-8 pr-4 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-700 dark:text-slate-200"
+                                                            className="w-full pl-8 pr-4 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all text-slate-700 dark:text-slate-200"
                                                             autoFocus
                                                         />
                                                         <svg className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1751,25 +1858,24 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             {/* MODAL DE DOCUMENTOS */}
             {isDocsModalOpen && (
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay p-0 sm:p-10">
-                    <div className={`bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up border-x border-b sm:border border-slate-200 dark:border-slate-700 ${pdfPreview ? 'sm:max-w-6xl' : 'sm:max-w-4xl'}`}>
-                        <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
-                            <div className="min-w-0 flex-1 mr-4">
+                    <div className={`bg-white dark:bg-slate-800 shadow-2xl w-full h-[90vh] sm:h-full sm:rounded-3xl rounded-t-2xl overflow-hidden flex flex-col transform transition-all animate-modal-slide-up border-x border-b sm:border border-slate-200 dark:border-slate-700 ${pdfPreview ? 'sm:max-w-6xl' : 'sm:max-w-4xl'}`}>
+                        <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
+                            <div className="min-w-0 flex-1 mr-3">
                                 <h3 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white truncate">Documentación</h3>
-                                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">{getVehicleDisplayLabel(selectedVehicle)}</p>
+                                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{getVehicleDisplayLabel(selectedVehicle)}</p>
                             </div>
-                            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                                 {!isGestor && (
                                     <button
                                         onClick={handleOpenAddDocModal}
-                                        className="select-none px-3 py-1.5 sm:px-4 sm:py-2 bg-primary hover:brightness-95 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-sm shadow-primary/20"
+                                        className="select-none px-3 py-1.5 sm:px-4 sm:py-2 bg-primary hover:brightness-95 text-white rounded-xl transition-all font-medium flex items-center gap-1 shadow-sm shadow-primary/20 text-sm whitespace-nowrap"
                                         title="Añadir Documento"
                                     >
-                                        <span className="text"> + Nuevo</span>
-                                        <span className="hidden sm:inline">documento</span>
+                                        + Nuevo
                                     </button>
                                 )}
-                                <button onClick={handleCloseDocsModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2" title="Cerrar">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                <button onClick={handleCloseDocsModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2 shrink-0" title="Cerrar">
+                                    <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </div>
                         </div>
@@ -1789,75 +1895,69 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                         <p className="text-slate-500 dark:text-slate-400 font-medium">No hay documentos registrados</p>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <table className="w-full text-sm text-left">
-                                            <thead>
-                                                <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                                                    <th className="pb-3 px-4">Tipo</th>
-                                                    <th className="pb-3 px-4">Nombre Original</th>
-                                                    <th className="pb-3 px-4">Vencimiento</th>
-                                                    {(!isGestor || documents.some(d => d.file_path)) && (
-                                                        <th className="pb-3 px-4 text-center">Acciones</th>
+                                    <div className="flex flex-col gap-3">
+                                        {documents.map(doc => (
+                                            <div key={doc.id} className="flex items-center gap-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                                {/* Icono documento */}
+                                                <div className="shrink-0 w-10 h-10 rounded-xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center">
+                                                    <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                    </svg>
+                                                </div>
+                                                {/* Info */}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-semibold text-slate-800 dark:text-white leading-tight">
+                                                        {DOC_TYPE_LABELS[doc.type] || doc.type}
+                                                    </p>
+                                                    <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5" title={doc.original_name}>
+                                                        {doc.original_name}
+                                                    </p>
+                                                    {doc.expiration_date ? (
+                                                        <span className={`inline-block mt-1 chip-uniform px-2 py-0.5 rounded-full text-[10px] font-semibold ${isDocumentExpired(doc.expiration_date) ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-primary/10 text-primary dark:bg-primary/20'}`}>
+                                                            {isDocumentExpired(doc.expiration_date) ? '⚠ ' : ''}{new Date(doc.expiration_date).toLocaleDateString()}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-block mt-1 text-[10px] text-slate-400 italic">Sin vencimiento</span>
                                                     )}
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {documents.map(doc => (
-                                                    <tr key={doc.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                                        <td className="py-3 px-4 font-bold text-slate-700 dark:text-white">{DOC_TYPE_LABELS[doc.type] || doc.type}</td>
-                                                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 truncate max-w-[200px]" title={doc.original_name}>
-                                                            {doc.original_name}
-                                                        </td>
-                                                        <td className="py-3 px-4">
-                                                            {doc.expiration_date ? (
-                                                                <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${isDocumentExpired(doc.expiration_date) ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-primary/10 text-primary dark:bg-primary/20'}`}>
-                                                                    {new Date(doc.expiration_date).toLocaleDateString()}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-slate-400 italic">No expira</span>
-                                                            )}
-                                                        </td>
-                                                        {(!isGestor || documents.some(d => d.file_path)) && (
-                                                        <td className="py-3 px-4 text-center whitespace-nowrap">
-                                                            <div className="flex items-center justify-center gap-1">
-                                                                {doc.file_path && (
-                                                                    <button
-                                                                        onClick={() => handlePreviewDocPdf(doc)}
-                                                                        className={`p-2 rounded-lg transition-all ${pdfPreview?.url?.includes(doc.id) ? 'bg-primary text-white shadow-sm' : 'text-primary hover:bg-primary/10'}`}
-                                                                        title="Ver PDF"
-                                                                    >
-                                                                        <FontAwesomeIcon icon={faFilePdf} className="w-4 h-4" />
-                                                                    </button>
-                                                                )}
-                                                                {!isGestor && (
-                                                                    <>
-                                                                        <button
-                                                                            onClick={() => handleOpenEditDocModal(doc)}
-                                                                            className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
-                                                                            title="Editar documento"
-                                                                        >
-                                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                                            </svg>
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => handleDeleteDocRequest(doc.id)}
-                                                                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                                            title="Eliminar documento"
-                                                                        >
-                                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                            </svg>
-                                                                        </button>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        </td>
+                                                </div>
+                                                {/* Acciones */}
+                                                {(!isGestor || documents.some(d => d.file_path)) && (
+                                                    <div className="shrink-0 flex items-center gap-1">
+                                                        {doc.file_path && (
+                                                            <button
+                                                                onClick={() => handlePreviewDocPdf(doc)}
+                                                                className={`p-2 rounded-lg transition-all ${pdfPreview?.url?.includes(doc.id) ? 'bg-primary text-white shadow-sm' : 'text-primary hover:bg-primary/10'}`}
+                                                                title="Ver PDF"
+                                                            >
+                                                                <FontAwesomeIcon icon={faFilePdf} className="w-4 h-4" />
+                                                            </button>
                                                         )}
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                                        {!isGestor && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleOpenEditDocModal(doc)}
+                                                                    className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
+                                                                    title="Editar documento"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                                    </svg>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteDocRequest(doc.id)}
+                                                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                                    title="Eliminar documento"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                    </svg>
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>
@@ -1906,17 +2006,17 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
                     {/* SUB-MODAL: AÑADIR DOCUMENTO */}
                     {isAddDocModalOpen && (
-                        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-6 sm:p-20">
+                        <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-20">
                             <div className="fixed inset-0 bg-slate-900/50 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay" onClick={handleCloseAddDocModal} />
-                            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md relative z-10 animate-scale-in border border-slate-200 dark:border-slate-700 overflow-hidden">
-                                <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                            <div className="bg-white dark:bg-slate-800 rounded-t-[32px] sm:rounded-3xl shadow-2xl w-full sm:max-w-md relative z-10 animate-modal-slide-up border-x border-b sm:border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col max-h-[95vh]">
+                                <div className="p-5 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shrink-0">
                                     <h4 className="text-lg font-bold text-slate-800 dark:text-white">Nuevo documento</h4>
-                                    <button onClick={handleCloseAddDocModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                                    <button onClick={handleCloseAddDocModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
                                 </div>
 
-                                <form onSubmit={handleAddDoc} className="p-6 space-y-4">
+                                <form onSubmit={handleAddDoc} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
                                     <div>
                                         <div className="flex justify-between items-center mb-1">
                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Nombre del documento</label>
@@ -1947,7 +2047,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                         <button
                                             type="button"
                                             onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center"
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all flex justify-between items-center"
                                         >
                                             <span className={!docFormData.type ? 'text-slate-400' : ''}>
                                                 {DOC_TYPE_LABELS[docFormData.type] || 'Seleccionar tipo...'}
@@ -2080,16 +2180,16 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
                     {/* MODAL PARA EDITAR DOCUMENTO */}
                     {isEditDocModalOpen && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-10 bg-slate-900/40 backdrop-blur-sm">
-                            <div className="bg-white dark:bg-slate-800 shadow-2xl w-full max-w-lg rounded-3xl overflow-hidden flex flex-col transform transition-all border border-slate-200 dark:border-slate-700 animate-scale-in">
-                                <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
-                                    <h3 className="text-xl font-bold text-slate-800 dark:text-white">Editar documento</h3>
+                        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-10 bg-slate-900/40 backdrop-blur-sm">
+                            <div className="bg-white dark:bg-slate-800 shadow-2xl w-full sm:max-w-lg rounded-t-[32px] sm:rounded-3xl overflow-hidden flex flex-col transform transition-all border-x border-b sm:border border-slate-200 dark:border-slate-700 animate-modal-slide-up max-h-[95vh]">
+                                <div className="p-5 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
+                                    <h3 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white">Editar documento</h3>
                                     <button onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); setDocFormData(INITIAL_DOC_FORM_STATE); setIsTypeDropdownOpen(false); setDocNameError(''); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
                                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
                                 </div>
-                                <div className="p-8">
-                                    <form onSubmit={handleUpdateDoc} className="space-y-6">
+                                <div className="flex-1 overflow-y-auto p-5 sm:p-8">
+                                    <form onSubmit={handleUpdateDoc} className="space-y-5 sm:space-y-6">
                                         <div>
                                             <div className="flex justify-between items-center mb-1">
                                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Nombre del documento</label>
@@ -2120,7 +2220,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                             <button
                                                 type="button"
                                                 onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center font-medium"
+                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none focus:outline-none transition-all flex justify-between items-center font-medium"
                                             >
                                                 <span>{docFormData.type ? DOC_TYPE_LABELS[docFormData.type] : 'Seleccionar tipo...'}</span>
                                                 <svg className={`w-4 h-4 transition-transform duration-200 ${isTypeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">

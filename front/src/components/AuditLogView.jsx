@@ -807,8 +807,11 @@ export default function AuditLogView() {
         <div className="select-none flex flex-col gap-4 mb-6 shrink-0">
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Registro de auditoría</h2>
-              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Auditoría</h2>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                  {totalRecords} registros
+                </span>
                 {(searchTerm || actionFilter || tableFilter || startDate || endDate) && (
                   <button
                     onClick={clearFilters}
@@ -824,9 +827,6 @@ export default function AuditLogView() {
                 <button onClick={handleExportPDF} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors" title="Exportar a PDF">
                   <FontAwesomeIcon icon={faFilePdf} className="text-lg" />
                 </button>
-                <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                  {totalRecords} Registros totales
-                </span>
               </div>
             </div>
 
@@ -879,7 +879,7 @@ export default function AuditLogView() {
         /* Vista PC */
         <div className="select-none flex flex-col mb-6 shrink-0 w-full">
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Registro de auditoría</h2>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Auditoría</h2>
             <div className="flex items-center gap-2">
               {(searchTerm || actionFilter || tableFilter || startDate || endDate) && (
                 <button
@@ -971,7 +971,7 @@ export default function AuditLogView() {
             {paginatedLogs.map((audit) => (
               <div
                 key={audit.id_auditoria}
-                className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-primary/50 dark:hover:border-primary/50 transition-all group"
+                className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 shadow-[0_2px_8px_rgba(0,0,0,0.07)] dark:shadow-none hover:border-primary/50 dark:hover:border-primary/50 transition-all group"
               >
                 <div className="flex justify-between items-start mb-4">
                   <div className="min-w-0 flex-1 pr-3">

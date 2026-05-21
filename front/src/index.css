@@ -2,9 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /* Override @tailwindcss/forms blue focus ring with magenta */
+  [type='text']:focus,
+  [type='email']:focus,
+  [type='url']:focus,
+  [type='password']:focus,
+  [type='number']:focus,
+  [type='date']:focus,
+  [type='datetime-local']:focus,
+  [type='month']:focus,
+  [type='search']:focus,
+  [type='tel']:focus,
+  [type='time']:focus,
+  [type='week']:focus,
+  [multiple]:focus,
+  textarea:focus,
+  select:focus {
+    --tw-ring-color: #E5007D;
+    border-color: #E5007D;
+  }
+}
+
 body {
   font-family: 'Plus Jakarta Sans', sans-serif;
 }
+
 
 @layer utilities {
   .animate-fade-in {
@@ -156,11 +179,11 @@ body {
 
   /* ── Light Mode Colors ── */
   /* Fondos principales */
-  --bg-page: #F5F4F2;
+  --bg-page: #E8E5E0;
   --bg-card: #FFFFFF;
   --bg-subtle: #FAFAF8;
   --bg-input: #F8F7F5;
-  --bg-muted: #F5F4F2;
+  --bg-muted: #F0EDE8;
   
   /* Bordes y separadores */
   --border-strong: #E2E2E2;
@@ -231,13 +254,14 @@ body {
 }
 
 .glass-card-solid {
-  background: rgba(255, 255, 255, 0.85);
+  background: #F5F3F0;
   backdrop-filter: blur(18px) saturate(20%);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
 .dark .glass-card-solid {
-  background: rgba(15, 5, 30, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(30, 30, 35, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }

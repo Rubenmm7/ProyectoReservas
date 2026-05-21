@@ -589,8 +589,8 @@ exports.getRecentReservations = async (req, res) => {
     whereClause = whereClause ? `${whereClause} ${hideOldFinalizedClause}` : hideOldFinalizedClause;
 
     if (search) {
-      whereClause += ` AND (u.username LIKE ? OR v.license_plate LIKE ? OR v.model LIKE ? OR r.status LIKE ?)`;
-      params.push(search, search, search, search);
+      whereClause += ` AND (u.username LIKE ? OR v.license_plate LIKE ? OR v.brand LIKE ? OR v.model LIKE ? OR r.status LIKE ?)`;
+      params.push(search, search, search, search, search);
     }
 
     if (startDate) {
