@@ -26,6 +26,7 @@ import {
     getDefaultReservationEnd,
     toLocalISOString,
     formatTimeUnit,
+    formatEnergyTypeLabel,
 } from '../utils/reservationsViewHelpers';
 import MonthYearPicker from './MonthYearPicker';
 import TimeValueSelect from './TimeValueSelect';
@@ -43,11 +44,11 @@ const STATUS_STYLES = {
     'fecha': 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
 const STATUS_ICON = {
-    'aprobada':  { color: 'text-green-600 dark:text-green-400',  bg: 'bg-green-100 dark:bg-green-500/20',  svg: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"/></svg> },
-    'activa':    { color: 'text-blue-600 dark:text-blue-400',    bg: 'bg-blue-100 dark:bg-blue-500/20',    svg: <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> },
-    'finalizada':{ color: 'text-violet-600 dark:text-violet-400',bg: 'bg-violet-100 dark:bg-violet-500/20', svg: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
-    'rechazada': { color: 'text-red-600 dark:text-red-400',      bg: 'bg-red-100 dark:bg-red-500/20',      svg: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg> },
-    'pendiente': { color: 'text-amber-600 dark:text-amber-400',  bg: 'bg-amber-100 dark:bg-amber-500/20',  svg: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
+    'aprobada': { color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-500/20', svg: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg> },
+    'activa': { color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-500/20', svg: <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg> },
+    'finalizada': { color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-500/20', svg: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+    'rechazada': { color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-500/20', svg: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg> },
+    'pendiente': { color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-500/20', svg: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
 };
 
 const formatVehicleName = (vehicle = {}) => {
@@ -66,6 +67,30 @@ const formatVehiclePlate = (vehicle = {}) => String(vehicle?.license_plate ?? ''
 
 
 
+
+const CALENDAR_MONTH_NAMES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+const CALENDAR_WEEK_DAYS = ["LUN", "MAR", "MIE", "JUE", "VIE", "SAB", "DOM"];
+const getMonthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+const cloneMonthStart = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
+const shiftMonthStart = (date, offset) => new Date(date.getFullYear(), date.getMonth() + offset, 1);
+const isSameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+const CALENDAR_EVENT_BG_STYLE = {
+    pendiente: { bg: '#f59e0b', hover: '#d97706' },
+    aprobada: { bg: '#22c55e', hover: '#16a34a' },
+    activa: { bg: '#6366f1', hover: '#4f46e5' },
+    finalizada: { bg: '#8b5cf6', hover: '#7c3aed' },
+    rechazada: { bg: '#ef4444', hover: '#dc2626' },
+};
+const buildMonthWindow = (anchorDate, before = 4, after = 4) => {
+    const anchor = cloneMonthStart(anchorDate ?? new Date());
+    const months = [];
+    for (let i = -before; i <= after; i += 1) {
+        months.push(shiftMonthStart(anchor, i));
+    }
+    return months;
+};
+const startOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+const endOfMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
 
 // CUSTOM DATE TIME PICKER COMPONENT
 const formatDetailValue = (value) => {
@@ -415,6 +440,14 @@ export default function ReservationsView({
     const [calendarReservations, setCalendarReservations] = useState([]);
     const [calendarLoading, setCalendarLoading] = useState(false);
     const [mobileCalSelectedDay, setMobileCalSelectedDay] = useState(null);
+    const [desktopCalendarMonths, setDesktopCalendarMonths] = useState(() => buildMonthWindow(new Date(), 4, 4));
+    const desktopCalendarScrollRef = useRef(null);
+    const desktopCalendarMonthRefs = useRef(new Map());
+    const desktopCalendarScrollRafRef = useRef(null);
+    const desktopCalendarInitialScrollPendingRef = useRef(false);
+    const desktopCalendarPendingPrependHeightRef = useRef(null);
+    const desktopCalendarActiveMonthKeyRef = useRef(getMonthKey(new Date()));
+    const desktopCalendarInitializedRef = useRef(false);
 
     // Sorting & Filter State
     const [sortConfig, setSortConfig] = useState({ key: 'upcoming_start_time', direction: 'asc' });
@@ -838,13 +871,17 @@ export default function ReservationsView({
         }
     };
 
-    const fetchCalendarReservations = async (date) => {
+    const fetchCalendarReservations = async (dateOrRange) => {
         setCalendarLoading(true);
         try {
-            const year = date.getFullYear();
-            const month = date.getMonth();
-            const monthStart = toLocalISOString(new Date(year, month, 1));
-            const monthEnd = toLocalISOString(new Date(year, month + 1, 0, 23, 59, 59));
+            const isDateLike = dateOrRange instanceof Date;
+            const rangeStartDate = !isDateLike && dateOrRange?.startDate ? dateOrRange.startDate : null;
+            const rangeEndDate = !isDateLike && dateOrRange?.endDate ? dateOrRange.endDate : null;
+            const baseDate = isDateLike ? dateOrRange : (rangeStartDate ?? calendarDate);
+            const year = baseDate.getFullYear();
+            const month = baseDate.getMonth();
+            const monthStart = toLocalISOString(rangeStartDate ?? new Date(year, month, 1));
+            const monthEnd = toLocalISOString(rangeEndDate ?? new Date(year, month + 1, 0, 23, 59, 59));
             const effectiveStart = filterStartDate || monthStart;
             const effectiveEnd = filterEndDate || monthEnd;
             const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
@@ -866,6 +903,113 @@ export default function ReservationsView({
         }
     };
 
+    const refreshCalendarReservations = () => {
+        if (viewMode !== 'calendar') return;
+        if (isMobile) {
+            fetchCalendarReservations(calendarDate);
+            return;
+        }
+
+        if (!desktopCalendarMonths.length) {
+            fetchCalendarReservations(calendarDate);
+            return;
+        }
+
+        const firstMonth = desktopCalendarMonths[0];
+        const lastMonth = desktopCalendarMonths[desktopCalendarMonths.length - 1];
+        fetchCalendarReservations({
+            startDate: startOfMonth(firstMonth),
+            endDate: endOfMonth(lastMonth),
+        });
+    };
+
+    const loadDesktopCalendarMonths = (direction) => {
+        setDesktopCalendarMonths((prev) => {
+            if (!prev.length) return buildMonthWindow(calendarDate, 4, 4);
+
+            const batchSize = 3;
+            const existingKeys = new Set(prev.map((month) => getMonthKey(month)));
+
+            if (direction === 'prepend') {
+                const firstMonth = prev[0];
+                const additions = [];
+                for (let i = batchSize; i >= 1; i -= 1) {
+                    const nextMonth = shiftMonthStart(firstMonth, -i);
+                    const key = getMonthKey(nextMonth);
+                    if (!existingKeys.has(key)) additions.push(nextMonth);
+                }
+                if (!additions.length) return prev;
+                const container = desktopCalendarScrollRef.current;
+                if (container) {
+                    desktopCalendarPendingPrependHeightRef.current = container.scrollHeight;
+                }
+                return [...additions, ...prev];
+            }
+
+            const lastMonth = prev[prev.length - 1];
+            const additions = [];
+            for (let i = 1; i <= batchSize; i += 1) {
+                const nextMonth = shiftMonthStart(lastMonth, i);
+                const key = getMonthKey(nextMonth);
+                if (!existingKeys.has(key)) additions.push(nextMonth);
+            }
+            if (!additions.length) return prev;
+            return [...prev, ...additions];
+        });
+    };
+
+    const handleDesktopCalendarScroll = () => {
+        if (isMobile || viewMode !== 'calendar') return;
+
+        if (desktopCalendarScrollRafRef.current) {
+            cancelAnimationFrame(desktopCalendarScrollRafRef.current);
+        }
+
+        desktopCalendarScrollRafRef.current = requestAnimationFrame(() => {
+            const container = desktopCalendarScrollRef.current;
+            if (!container) return;
+
+            const topThreshold = 600;
+            const bottomThreshold = 600;
+            if (container.scrollTop < topThreshold) {
+                loadDesktopCalendarMonths('prepend');
+            }
+            if (container.scrollHeight - (container.scrollTop + container.clientHeight) < bottomThreshold) {
+                loadDesktopCalendarMonths('append');
+            }
+
+            const containerRect = container.getBoundingClientRect();
+            const containerCenter = containerRect.top + (containerRect.height / 2);
+            let closestKey = desktopCalendarActiveMonthKeyRef.current;
+            let closestDistance = Number.POSITIVE_INFINITY;
+
+            desktopCalendarMonthRefs.current.forEach((el, key) => {
+                if (!el) return;
+                const rect = el.getBoundingClientRect();
+                const center = rect.top + (rect.height / 2);
+                const distance = Math.abs(center - containerCenter);
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestKey = key;
+                }
+            });
+
+            if (closestKey && closestKey !== desktopCalendarActiveMonthKeyRef.current) {
+                desktopCalendarActiveMonthKeyRef.current = closestKey;
+                const [year, month] = closestKey.split('-').map((part) => Number(part));
+                if (!Number.isNaN(year) && !Number.isNaN(month)) {
+                    setCalendarDate(new Date(year, month - 1, 1));
+                }
+            }
+        });
+    };
+
+    useEffect(() => () => {
+        if (desktopCalendarScrollRafRef.current) {
+            cancelAnimationFrame(desktopCalendarScrollRafRef.current);
+        }
+    }, []);
+
     useEffect(() => {
         fetchCentres();
         fetchReservations();
@@ -878,7 +1022,7 @@ export default function ReservationsView({
         // y marcarlas como finalizadas cuando superan su fecha fin.
         const intervalId = setInterval(() => {
             fetchReservations();
-            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
+            if (viewMode === 'calendar') refreshCalendarReservations();
         }, 30000);
 
         // Cerrar dropdown al hacer click fuera
@@ -921,25 +1065,25 @@ export default function ReservationsView({
                 return [reservation, ...prev];
             });
             fetchReservations();
-            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
+            if (viewMode === 'calendar') refreshCalendarReservations();
         },
         onUpdatedReservation: (reservation, meta) => {
             if (meta.isSupervisor) return;
             if (recentlyCreatedByMeRef.current.has(String(reservation.id))) return;
             if (reservation.status === 'finalizada') {
                 fetchReservations();
-                if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
+                if (viewMode === 'calendar') refreshCalendarReservations();
                 return;
             }
             if (!meta.isOwnReservation) return;
             fetchReservations();
-            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
+            if (viewMode === 'calendar') refreshCalendarReservations();
         },
         onDeletedReservation: (data, meta) => {
             if (meta.isSupervisor) return;
             setReservations((prev) => prev.filter((r) => String(r.id) !== String(data.id)));
             fetchReservations();
-            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
+            if (viewMode === 'calendar') refreshCalendarReservations();
         },
     });
 
@@ -1050,17 +1194,268 @@ export default function ReservationsView({
     }, [isMobile, visibleItems, reservations.length, currentPage, totalPages]);
 
     useEffect(() => {
-        if (viewMode === 'calendar') {
+        if (viewMode === 'calendar' && isMobile) {
             fetchCalendarReservations(calendarDate);
         }
-    }, [viewMode, calendarDate, searchTerm, filterStatus, filterStartDate, filterEndDate]);
+    }, [viewMode, isMobile, calendarDate, searchTerm, filterStatus, filterStartDate, filterEndDate]);
+
+    useEffect(() => {
+        if (viewMode !== 'calendar' || isMobile) return;
+        const anchorMonth = cloneMonthStart(calendarDate);
+        const activeKey = getMonthKey(anchorMonth);
+
+        if (!desktopCalendarInitializedRef.current) {
+            setDesktopCalendarMonths(buildMonthWindow(anchorMonth, 4, 4));
+            desktopCalendarActiveMonthKeyRef.current = activeKey;
+            desktopCalendarInitialScrollPendingRef.current = true;
+            desktopCalendarInitializedRef.current = true;
+            return;
+        }
+
+        if (desktopCalendarMonths.length === 0) {
+            setDesktopCalendarMonths(buildMonthWindow(anchorMonth, 4, 4));
+            desktopCalendarActiveMonthKeyRef.current = activeKey;
+            desktopCalendarInitialScrollPendingRef.current = true;
+        }
+    }, [viewMode, isMobile, calendarDate, desktopCalendarMonths.length]);
+
+    useEffect(() => {
+        if (viewMode !== 'calendar' || isMobile) return;
+        if (!desktopCalendarInitialScrollPendingRef.current) return;
+
+        const container = desktopCalendarScrollRef.current;
+        if (!container) return;
+
+        const targetMonth = desktopCalendarMonthRefs.current.get(getMonthKey(calendarDate));
+        if (!targetMonth) return;
+
+        requestAnimationFrame(() => {
+            const nextTop = Math.max(0, targetMonth.offsetTop - 24);
+            container.scrollTop = nextTop;
+            desktopCalendarInitialScrollPendingRef.current = false;
+        });
+    }, [viewMode, isMobile, desktopCalendarMonths, calendarDate]);
+
+    useEffect(() => {
+        if (viewMode !== 'calendar' || isMobile) return;
+        if (!desktopCalendarMonths.length) return;
+        refreshCalendarReservations();
+    }, [viewMode, isMobile, desktopCalendarMonths, searchTerm, filterStatus, filterStartDate, filterEndDate]);
+
+    useEffect(() => {
+        if (desktopCalendarPendingPrependHeightRef.current == null) return;
+        const container = desktopCalendarScrollRef.current;
+        if (!container) return;
+
+        const previousHeight = desktopCalendarPendingPrependHeightRef.current;
+        desktopCalendarPendingPrependHeightRef.current = null;
+
+        requestAnimationFrame(() => {
+            if (!desktopCalendarScrollRef.current) return;
+            const nextHeight = desktopCalendarScrollRef.current.scrollHeight;
+            desktopCalendarScrollRef.current.scrollTop += Math.max(0, nextHeight - previousHeight);
+        });
+    }, [desktopCalendarMonths]);
+
+    useEffect(() => {
+        if (viewMode !== 'calendar' || isMobile) {
+            desktopCalendarInitializedRef.current = false;
+            desktopCalendarInitialScrollPendingRef.current = false;
+        }
+    }, [viewMode, isMobile]);
+
+    const renderDesktopCalendarMonth = (monthDate) => {
+        const monthKey = getMonthKey(monthDate);
+        const calYear = monthDate.getFullYear();
+        const calMonth = monthDate.getMonth();
+        const today = new Date();
+        const isCurrentSystemMonth = today.getFullYear() === calYear && today.getMonth() === calMonth;
+        const isFocusedMonth = monthKey === getMonthKey(calendarDate);
+        const pad2 = (n) => String(n).padStart(2, '0');
+
+        const firstDay = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+        const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+        const calCells = [];
+        for (let i = 0; i < firstDay; i += 1) {
+            calCells.push(new Date(calYear, calMonth, -(firstDay - i - 1)));
+        }
+        for (let d = 1; d <= daysInMonth; d += 1) calCells.push(new Date(calYear, calMonth, d));
+        for (let i = 1; calCells.length < 42; i += 1) calCells.push(new Date(calYear, calMonth + 1, i));
+        const weeks = Array.from({ length: 6 }, (_, w) => calCells.slice(w * 7, w * 7 + 7));
+
+        const startOfDay = (dt) => { const d = new Date(dt); d.setHours(0, 0, 0, 0); return d; };
+        const isSameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+        const parsedReservations = calendarReservations.map((r) => {
+            const st = parseMySqlDateTime(r.start_time);
+            const et = parseMySqlDateTime(r.end_time);
+            if (!st || !et) return null;
+            return {
+                ...r,
+                _start: st,
+                _end: et,
+                _startLabel: `${pad2(st.getHours())}:${pad2(st.getMinutes())}`,
+                _endLabel: `${pad2(et.getHours())}:${pad2(et.getMinutes())}`,
+            };
+        }).filter(Boolean);
+
+        const EVENT_H = 22;
+        const EVENT_GAP = 2;
+        const DAY_NUM_H = 28;
+
+        const weekRows = weeks.map((weekDays) => {
+            const weekStart = startOfDay(weekDays[0]);
+            const weekEnd = startOfDay(weekDays[6]);
+            weekEnd.setHours(23, 59, 59, 999);
+            const firstVisibleCol = weekDays.findIndex((d) => d.getMonth() === calMonth);
+            const lastVisibleCol = weekDays.length - 1 - [...weekDays].reverse().findIndex((d) => d.getMonth() === calMonth);
+
+            const events = parsedReservations
+                .filter((r) => r._start <= weekEnd && r._end >= weekStart)
+                .map((r) => {
+                    const adjStart = startOfDay(r._start) < weekStart ? 0 : weekDays.findIndex((d) => isSameDay(d, r._start));
+                    const adjEnd = weekDays.reduce((acc, d, i) => (startOfDay(r._end) >= startOfDay(d) ? i : acc), 0);
+                    return { ...r, startCol: Math.max(0, adjStart), endCol: Math.min(6, adjEnd) };
+                })
+                .sort((a, b) => a._start - b._start);
+
+            const lanes = [];
+            events.forEach((ev) => {
+                let placed = false;
+                for (let i = 0; i < lanes.length; i += 1) {
+                    const overlaps = lanes[i].some((le) => !(ev.endCol < le.startCol || ev.startCol > le.endCol));
+                    if (!overlaps) {
+                        lanes[i].push(ev);
+                        ev._lane = i;
+                        placed = true;
+                        break;
+                    }
+                }
+                if (!placed) {
+                    ev._lane = lanes.length;
+                    lanes.push([ev]);
+                }
+            });
+
+            return { weekDays, events, laneCount: lanes.length, weekStart, weekEnd, firstVisibleCol, lastVisibleCol };
+        });
+
+        return (
+            <section
+                key={monthKey}
+                ref={(el) => {
+                    if (!el) {
+                        desktopCalendarMonthRefs.current.delete(monthKey);
+                        return;
+                    }
+                    desktopCalendarMonthRefs.current.set(monthKey, el);
+                }}
+                className={`rounded-3xl border overflow-hidden transition-all ${isFocusedMonth ? 'border-primary/30 bg-slate-900/55 shadow-[0_12px_30px_rgba(15,23,42,0.16)]' : isCurrentSystemMonth ? 'border-slate-500/50 bg-slate-900/45' : 'border-slate-700/70 bg-slate-900/35'}`}
+            >
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+                    <div className="flex items-center gap-3">
+                        <div className={`h-9 w-1.5 rounded-full ${isFocusedMonth ? 'bg-primary' : isCurrentSystemMonth ? 'bg-sky-400/70' : 'bg-slate-600'}`} />
+                        <div>
+                            <h3 className={`text-base font-bold ${isFocusedMonth ? 'text-white' : 'text-slate-200'}`}>
+                                {CALENDAR_MONTH_NAMES[calMonth]} de {calYear}
+                            </h3>
+                        </div>
+                    </div>
+                    {isCurrentSystemMonth && (
+                        <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] bg-white/8 text-slate-200 border border-white/10">Actual</span>
+                    )}
+                </div>
+
+                <div className="grid grid-cols-7 border-b border-white/5 bg-slate-950/20">
+                    {CALENDAR_WEEK_DAYS.map((day, i) => (
+                        <div
+                            key={day}
+                            className={`text-center text-[11px] font-bold text-slate-400 uppercase py-2 ${i < 6 ? 'border-r border-white/5' : ''}`}
+                        >
+                            {day}
+                        </div>
+                    ))}
+                </div>
+
+                <div className="flex flex-col">
+                    {weekRows.map(({ weekDays, events, laneCount, weekStart, weekEnd, firstVisibleCol, lastVisibleCol }, wi) => {
+                        const rowH = DAY_NUM_H + laneCount * (EVENT_H + EVENT_GAP) + 6;
+                        return (
+                            <div
+                                key={wi}
+                                className={`relative grid grid-cols-7 ${wi < 5 ? 'border-b border-white/5' : ''}`}
+                                style={{ minHeight: `${Math.max(rowH, 88)}px` }}
+                            >
+                                {weekDays.map((cellDate, di) => {
+                                    const isCur = cellDate.getMonth() === calMonth;
+                                    return (
+                                        <div
+                                            key={di}
+                                            className={`group relative ${di < 6 ? 'border-r border-white/5' : ''} ${isCur ? 'bg-slate-800/50' : 'bg-slate-950/20'} ${isCurrentSystemMonth && isCur ? 'bg-slate-800/70' : ''} pt-1 pr-1.5`}
+                                        >
+                                            {isCur && (
+                                                <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ml-auto ${today.getFullYear() === cellDate.getFullYear() && today.getMonth() === cellDate.getMonth() && today.getDate() === cellDate.getDate() ? 'bg-primary text-white' : 'text-slate-200'}`}>
+                                                    {cellDate.getDate()}
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+
+                                <div className="absolute inset-0 pointer-events-none" style={{ top: `${DAY_NUM_H}px` }}>
+                                    {events.map((ev) => {
+                                        if (firstVisibleCol < 0 || lastVisibleCol < 0) return null;
+                                        const visibleStartCol = Math.max(ev.startCol, firstVisibleCol);
+                                        const visibleEndCol = Math.min(ev.endCol, lastVisibleCol);
+                                        if (visibleStartCol > visibleEndCol) return null;
+                                        const colW = 100 / 7;
+                                        const left = visibleStartCol * colW;
+                                        const width = (visibleEndCol - visibleStartCol + 1) * colW;
+                                        const top = ev._lane * (EVENT_H + EVENT_GAP);
+                                        const color = (CALENDAR_EVENT_BG_STYLE[ev.status] ?? CALENDAR_EVENT_BG_STYLE.pendiente).bg;
+                                        const isStartVisible = visibleStartCol > ev.startCol || ev._start >= weekStart;
+                                        const isEndVisible = visibleEndCol < ev.endCol || startOfDay(ev._end) <= weekEnd;
+                                        return (
+                                            <button
+                                                key={`${ev.id}-${wi}`}
+                                                onClick={(e) => { e.stopPropagation(); handleOpenReservationDetails(ev); }}
+                                                className="absolute flex items-center pointer-events-auto text-white text-[10px] font-semibold leading-none hover:brightness-110 active:brightness-90 transition-all overflow-hidden group"
+                                                style={{
+                                                    left: `calc(${left}% + 2px)`,
+                                                    width: `calc(${width}% - 4px)`,
+                                                    top: `${top}px`,
+                                                    height: `${EVENT_H}px`,
+                                                    backgroundColor: color,
+                                                    borderRadius: `${isStartVisible ? '5px' : '0'} ${isEndVisible ? '5px' : '0'} ${isEndVisible ? '5px' : '0'} ${isStartVisible ? '5px' : '0'}`,
+                                                    paddingLeft: isStartVisible ? '6px' : '2px',
+                                                    paddingRight: isEndVisible ? '6px' : '2px',
+                                                }}
+                                                title={`${formatVehicleLabel(ev)} — ${ev.username || ''} (${ev._startLabel} - ${ev._endLabel})`}
+                                            >
+                                                {isStartVisible && (
+                                                    <span className="shrink-0 opacity-90 mr-1">{ev._startLabel}</span>
+                                                )}
+                                                <span className="truncate flex-1">{formatVehicleLabel(ev, false)}</span>
+                                                {isEndVisible && (
+                                                    <span className="shrink-0 opacity-90 ml-1">{ev._endLabel}</span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </section>
+        );
+    };
 
     const handleQuickApprove = async (r) => {
         const ok = await updateReservationStatus(r, 'aprobada');
         if (ok) {
             setCurrentPage(1);
             await fetchReservations(false, 1, false);
-            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
+            if (viewMode === 'calendar') refreshCalendarReservations();
         } else {
             toast.error('Error al aprobar reserva');
         }
@@ -1089,7 +1484,7 @@ export default function ReservationsView({
                 setRejectReason('');
                 setCurrentPage(1);
                 await fetchReservations(false, 1, false);
-                if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
+                if (viewMode === 'calendar') refreshCalendarReservations();
             } else {
                 toast.error('Error al rechazar la reserva');
             }
@@ -1381,7 +1776,7 @@ export default function ReservationsView({
             }
 
             await fetchReservations();
-            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
+            if (viewMode === 'calendar') refreshCalendarReservations();
             handleCloseModal();
 
             if (onOperationComplete) onOperationComplete();
@@ -1418,7 +1813,7 @@ export default function ReservationsView({
             // Si era una reserva finalizada, NO sincronizar estados de vehículos
             // porque eso cambiaría el estado del vehículo incorrectamente
             await fetchReservations(isFinalized);
-            if (viewMode === 'calendar') fetchCalendarReservations(calendarDate);
+            if (viewMode === 'calendar') refreshCalendarReservations();
 
             if (onOperationComplete) onOperationComplete();
             if (shouldShowLocalSuccessToasts) {
@@ -1788,7 +2183,7 @@ export default function ReservationsView({
                                                             <div className="relative flex items-center">
                                                                 <input
                                                                     type="text"
-                                                            placeholder="Buscar o seleccionar vehículo..."
+                                                                    placeholder="Buscar o seleccionar vehículo..."
                                                                     value={isVehicleDropdownOpen ? vehicleSearchTermDropdown : (formData.vehicle_id ? (vehiclesList.find(v => v.id == formData.vehicle_id) ? formatVehicleLabel(vehiclesList.find(v => v.id == formData.vehicle_id)) : formData.temp_vehicle_info || '') : '')}
                                                                     onChange={(e) => {
                                                                         setVehicleSearchTermDropdown(e.target.value);
@@ -2224,13 +2619,13 @@ export default function ReservationsView({
             )}
 
             {viewMode === 'calendar' ? (isMobile ? (() => {
-                const CAL_MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-                const CAL_DAYS_M = ["L","M","X","J","V","S","D"];
+                const CAL_MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+                const CAL_DAYS_M = ["L", "M", "X", "J", "V", "S", "D"];
                 const calYear = calendarDate.getFullYear();
                 const calMonth = calendarDate.getMonth();
                 const pad2m = (n) => String(n).padStart(2, '0');
                 const todayM = new Date();
-                const isSameDayM = (a, b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+                const isSameDayM = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
                 const isTodayM = (dt) => isSameDayM(dt, todayM);
                 const firstDay = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
                 const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
@@ -2246,11 +2641,11 @@ export default function ReservationsView({
                 }).filter(Boolean);
                 const startOfDayM = (dt) => { const d = new Date(dt); d.setHours(0, 0, 0, 0); return d; };
                 const getResosForDay = (day) => {
-                    const ds = new Date(day); ds.setHours(0,0,0,0);
-                    const de = new Date(day); de.setHours(23,59,59,999);
+                    const ds = new Date(day); ds.setHours(0, 0, 0, 0);
+                    const de = new Date(day); de.setHours(23, 59, 59, 999);
                     return parsedM.filter(r => r._start <= de && r._end >= ds);
                 };
-                const STATUS_DOT = { pendiente:'bg-amber-400', aprobada:'bg-green-500', activa:'bg-blue-500', finalizada:'bg-violet-500', rechazada:'bg-red-500' };
+                const STATUS_DOT = { pendiente: 'bg-amber-400', aprobada: 'bg-green-500', activa: 'bg-blue-500', finalizada: 'bg-violet-500', rechazada: 'bg-red-500' };
                 const selectedResos = mobileCalSelectedDay ? getResosForDay(mobileCalSelectedDay) : [];
                 const weekRowsM = Array.from({ length: Math.ceil(calCells.length / 7) }, (_, w) => calCells.slice(w * 7, w * 7 + 7)).map((weekDays) => {
                     const weekStart = startOfDayM(weekDays[0]);
@@ -2295,11 +2690,11 @@ export default function ReservationsView({
                     <div className="flex flex-col gap-4">
                         {/* Navegación de mes */}
                         <div className="flex items-center justify-between">
-                            <button onClick={() => { const d=new Date(calendarDate); d.setMonth(d.getMonth()-1); setCalendarDate(d); setMobileCalSelectedDay(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
+                            <button onClick={() => { const d = new Date(calendarDate); d.setMonth(d.getMonth() - 1); setCalendarDate(d); setMobileCalSelectedDay(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
                                 <FontAwesomeIcon icon={faChevronLeft} className="text-slate-600 dark:text-slate-300 text-sm" />
                             </button>
                             <span className="text-base font-bold text-slate-800 dark:text-white capitalize">{CAL_MONTHS[calMonth]} {calYear}</span>
-                            <button onClick={() => { const d=new Date(calendarDate); d.setMonth(d.getMonth()+1); setCalendarDate(d); setMobileCalSelectedDay(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
+                            <button onClick={() => { const d = new Date(calendarDate); d.setMonth(d.getMonth() + 1); setCalendarDate(d); setMobileCalSelectedDay(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
                                 <FontAwesomeIcon icon={faChevronRight} className="text-slate-600 dark:text-slate-300 text-sm" />
                             </button>
                         </div>
@@ -2356,7 +2751,7 @@ export default function ReservationsView({
                                                         const left = ev.startCol * colW;
                                                         const width = (ev.endCol - ev.startCol + 1) * colW;
                                                         const top = ev._lane * 16;
-                                                        const bgColor = ({ pendiente:'#f59e0b', aprobada:'#22c55e', activa:'#3b82f6', finalizada:'#8b5cf6', rechazada:'#ef4444' }[ev.status] ?? '#94a3b8');
+                                                        const bgColor = ({ pendiente: '#f59e0b', aprobada: '#22c55e', activa: '#3b82f6', finalizada: '#8b5cf6', rechazada: '#ef4444' }[ev.status] ?? '#94a3b8');
                                                         const isStartVisible = ev.startCol > 0 || ev._start >= weekStart;
                                                         const isEndVisible = ev.endCol < 6 || startOfDayM(ev._end) <= weekEnd;
                                                         return (
@@ -2408,7 +2803,7 @@ export default function ReservationsView({
                                     <div className="space-y-2">
                                         {selectedResos.map(r => {
                                             const startLabel = `${pad2m(r._start.getHours())}:${pad2m(r._start.getMinutes())}`;
-                                            const endLabel   = `${pad2m(r._end.getHours())}:${pad2m(r._end.getMinutes())}`;
+                                            const endLabel = `${pad2m(r._end.getHours())}:${pad2m(r._end.getMinutes())}`;
                                             const vehicleName = formatVehicleName(r);
                                             const vehiclePlate = formatVehiclePlate(r);
                                             return (
@@ -2436,10 +2831,10 @@ export default function ReservationsView({
                                                             {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || String(r.user_id) === String(currentUser.id)) && (
                                                                 <div className="flex gap-1">
                                                                     <button onClick={(e) => { e.stopPropagation(); handleOpenModal(r); }} className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors">
-                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                                     </button>
                                                                     <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(r.id); }} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
-                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                                     </button>
                                                                 </div>
                                                             )}
@@ -2455,16 +2850,44 @@ export default function ReservationsView({
                     </div>
                 );
             })() : (() => {
-                const CAL_MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-                const CAL_DAYS = ["LUN","MAR","MIÉ","JUE","VIE","SÁB","DOM"];
+                return (
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center justify-between shrink-0">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Calendario</span>
+                                <span className="text-base font-bold text-slate-800 dark:text-white">
+                                    {CALENDAR_MONTH_NAMES[calendarDate.getMonth()]} de {calendarDate.getFullYear()}
+                                </span>
+                            </div>
+                        </div>
+                        <div
+                            ref={desktopCalendarScrollRef}
+                            onScroll={handleDesktopCalendarScroll}
+                            className="max-h-[calc(100vh-310px)] overflow-y-auto pr-2 custom-scrollbar space-y-4 pb-2"
+                        >
+                            {calendarLoading && (
+                                <div className="sticky top-0 z-20 flex justify-center pointer-events-none pb-2">
+                                    <div className="inline-flex items-center gap-2 rounded-full bg-slate-900/85 text-white border border-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] shadow-lg">
+                                        <span className="w-3 h-3 border-2 border-white/20 border-t-primary rounded-full animate-spin" />
+                                        Actualizando
+                                    </div>
+                                </div>
+                            )}
+                            {desktopCalendarMonths.map((monthDate) => renderDesktopCalendarMonth(monthDate))}
+                        </div>
+                    </div>
+                );
+
+                const CAL_MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+                const CAL_DAYS = ["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"];
                 const calYear = calendarDate.getFullYear();
                 const calMonth = calendarDate.getMonth();
                 const EVENT_BG_STYLE = {
-                    pendiente:  { bg: '#f59e0b', hover: '#d97706' },
-                    aprobada:   { bg: '#22c55e', hover: '#16a34a' },
-                    activa:     { bg: '#6366f1', hover: '#4f46e5' },
+                    pendiente: { bg: '#f59e0b', hover: '#d97706' },
+                    aprobada: { bg: '#22c55e', hover: '#16a34a' },
+                    activa: { bg: '#6366f1', hover: '#4f46e5' },
                     finalizada: { bg: '#8b5cf6', hover: '#7c3aed' },
-                    rechazada:  { bg: '#ef4444', hover: '#dc2626' },
+                    rechazada: { bg: '#ef4444', hover: '#dc2626' },
                 };
                 const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -2480,8 +2903,8 @@ export default function ReservationsView({
                 const weeks = Array.from({ length: 6 }, (_, w) => calCells.slice(w * 7, w * 7 + 7));
 
                 const today = new Date();
-                const startOfDay = (dt) => { const d = new Date(dt); d.setHours(0,0,0,0); return d; };
-                const isSameDay = (a, b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+                const startOfDay = (dt) => { const d = new Date(dt); d.setHours(0, 0, 0, 0); return d; };
+                const isSameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
                 const isToday = (dt) => isSameDay(dt, today);
 
                 // Parse all reservations once
@@ -2570,8 +2993,8 @@ export default function ReservationsView({
                                             {/* Day cells (background + day number) */}
                                             {weekDays.map((cellDate, di) => {
                                                 const isCur = cellDate.getMonth() === calMonth;
-                                                const dayStart = new Date(cellDate); dayStart.setHours(0,0,0,0);
-                                                const dayEnd = new Date(cellDate); dayEnd.setHours(23,59,59,999);
+                                                const dayStart = new Date(cellDate); dayStart.setHours(0, 0, 0, 0);
+                                                const dayEnd = new Date(cellDate); dayEnd.setHours(23, 59, 59, 999);
                                                 const blockedForEmployee = isEmployeeLikeUser(currentUser) && calendarReservations.some(r => {
                                                     if (String(r.user_id) !== String(currentUser.id)) return false;
                                                     if (r.status === 'rechazada' || r.status === 'finalizada') return false;
@@ -2627,7 +3050,7 @@ export default function ReservationsView({
                                                                 paddingLeft: isStartVisible ? '6px' : '2px',
                                                                 paddingRight: isEndVisible ? '6px' : '2px',
                                                             }}
-                                title={`${formatVehicleLabel(ev)} — ${ev.username || ''} (${ev._startLabel} - ${ev._endLabel})`}
+                                                            title={`${formatVehicleLabel(ev)} — ${ev.username || ''} (${ev._startLabel} - ${ev._endLabel})`}
                                                         >
                                                             {isStartVisible && (
                                                                 <span className="shrink-0 opacity-90 mr-1">{ev._startLabel}</span>
@@ -2693,10 +3116,12 @@ export default function ReservationsView({
                             {r.status === 'rechazada' && r.motivo_rechazo && (
                                 <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); setViewingReason({
-                                        title: 'Motivo de rechazo',
-                                        reason: r.motivo_rechazo
-                                    }); }}
+                                    onClick={(e) => {
+                                        e.stopPropagation(); setViewingReason({
+                                            title: 'Motivo de rechazo',
+                                            reason: r.motivo_rechazo
+                                        });
+                                    }}
                                     className="mb-3 text-[10px] font-bold text-red-500 hover:underline uppercase tracking-tighter flex items-center gap-1.5 transition-all hover:scale-105"
                                 >
                                     <FontAwesomeIcon icon={faTriangleExclamation} className="text-[9px]" />
@@ -2865,10 +3290,12 @@ export default function ReservationsView({
                                                     {r.status === 'rechazada' && r.motivo_rechazo && (
                                                         <button
                                                             type="button"
-                                                            onClick={(e) => { e.stopPropagation(); setViewingReason({
-                                                                title: 'Motivo de rechazo',
-                                                                reason: r.motivo_rechazo
-                                                            }); }}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation(); setViewingReason({
+                                                                    title: 'Motivo de rechazo',
+                                                                    reason: r.motivo_rechazo
+                                                                });
+                                                            }}
                                                             className="mt-1 text-[9px] font-bold text-red-500 hover:underline uppercase tracking-tighter transition-all hover:scale-105"
                                                         >
                                                             Ver motivo
@@ -3035,7 +3462,7 @@ export default function ReservationsView({
                                     </div>
                                 )}
 
-            {/* PASO 1 (Admin/Supervisor): SELECCIÓN DE USUARIO */}
+                                {/* PASO 1 (Admin/Supervisor): SELECCIÓN DE USUARIO */}
                                 {showCreateUserStep && (
                                     <div className="select-none animate-in fade-in slide-in-from-right-4 duration-300">
                                         <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Reserva de:</label>
@@ -3430,33 +3857,33 @@ export default function ReservationsView({
                                                         paginatedModalReservations.map(reservation => {
                                                             const si = STATUS_ICON[reservation.status];
                                                             return (
-                                                            <div key={reservation.id} className="flex items-center gap-3 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-3 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                                                <div className="shrink-0 w-9 h-9 rounded-xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center">
-                                                                    <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 17H5a2 2 0 01-2-2V9a2 2 0 012-2h1l2-3h8l2 3h1a2 2 0 012 2v6a2 2 0 01-2 2h-3m-6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
-                                                                    </svg>
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-snug">
-                                                                        {formatVehicleLabel(reservation)}
-                                                                    </p>
-                                                                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-1">
-                                                                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                                <div key={reservation.id} className="flex items-center gap-3 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-3 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                                                    <div className="shrink-0 w-9 h-9 rounded-xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center">
+                                                                        <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 17H5a2 2 0 01-2-2V9a2 2 0 012-2h1l2-3h8l2 3h1a2 2 0 012 2v6a2 2 0 01-2 2h-3m-6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
                                                                         </svg>
-                                                                        {reservation.username}
-                                                                    </p>
-                                                                </div>
-                                                                {si ? (
-                                                                    <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${si.bg} ${si.color}`} title={reservation.status}>
-                                                                        {si.svg}
                                                                     </div>
-                                                                ) : (
-                                                                    <span className={`chip-uniform shrink-0 px-2 py-1 rounded-full text-[10px] font-semibold capitalize ${STATUS_STYLES[reservation.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
-                                                                        {reservation.status}
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-snug">
+                                                                            {formatVehicleLabel(reservation)}
+                                                                        </p>
+                                                                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-1">
+                                                                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                                            </svg>
+                                                                            {reservation.username}
+                                                                        </p>
+                                                                    </div>
+                                                                    {si ? (
+                                                                        <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${si.bg} ${si.color}`} title={reservation.status}>
+                                                                            {si.svg}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className={`chip-uniform shrink-0 px-2 py-1 rounded-full text-[10px] font-semibold capitalize ${STATUS_STYLES[reservation.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
+                                                                            {reservation.status}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             );
                                                         })
                                                     ) : (
@@ -3767,11 +4194,11 @@ export default function ReservationsView({
                                     </span>
                                 </div>
                                 <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 p-4">
-                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Usuario</p>
-                                        <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-white">{formatDetailValue(reservationDetails.username)}</p>
-                                    </div>
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Usuario</p>
+                                    <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-white">{formatDetailValue(reservationDetails.username)}</p>
+                                </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    
+
                                     <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 p-4">
                                         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Inicio</p>
                                         <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-white">{formatDate(reservationDetails.start_time)}</p>
@@ -3809,7 +4236,7 @@ export default function ReservationsView({
                                             { label: 'Tipo', value: formatReadableValue(vehicle?.vehicle_type) },
                                             { label: 'Plazas', value: formatDetailValue(vehicle?.seats) },
                                             { label: 'Maletero', value: formatDetailValue(vehicle?.trunk_capacity_l) },
-                                            { label: 'Energía', value: formatReadableValue(vehicle?.energy_type) },
+                                            { label: 'Energía', value: formatEnergyTypeLabel(vehicle?.energy_type) },
                                             { label: 'Nivel de combustible', value: formatReadableValue(vehicle?.fuel_level) },
                                             { label: 'Kilómetros', value: formatDetailValue(vehicle?.kilometers) },
                                         ];

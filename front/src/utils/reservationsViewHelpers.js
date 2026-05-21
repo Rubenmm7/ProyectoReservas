@@ -69,6 +69,19 @@ export const canOpenDeliveryForm = (reservation, currentUser, submittedDeliveryI
 
 export const formatDate = (value) => formatLocalDateTime(value);
 
+export const formatEnergyTypeLabel = (value) => {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (!normalized) return '—';
+
+    const labels = {
+        combustion: 'Combustión',
+        hibrido: 'Híbrido',
+        electrico: 'Eléctrico',
+    };
+
+    return labels[normalized] || normalized.replace(/-/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 export const roundUpToFiveMinutes = (date) => {
     const next = new Date(date);
     const minutes = next.getMinutes();
