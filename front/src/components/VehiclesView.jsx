@@ -184,13 +184,16 @@ const VehicleFilterSelect = ({ value, onChange, options, placeholder }) => {
                 <div ref={containerRef} className="relative flex-1 min-w-[120px]">
                     <Listbox.Button
                         onClick={handleButtonClick}
-                        className="w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/90 dark:bg-slate-900/50 px-3 py-1.5 text-left shadow-sm transition-all hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary backdrop-blur"
+                        className="w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/90 dark:bg-slate-900/50 px-3 py-1.5 text-left shadow-sm transition-all hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary backdrop-blur flex items-center justify-between"
                     >
                         <div className="min-w-0">
                             <p className={`truncate text-sm font-semibold ${value ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}`}>
                                 {selectedOption?.label ?? placeholder}
                             </p>
                         </div>
+                        <svg className={`w-4 h-4 ml-2 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''} text-slate-400 dark:text-slate-500`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                        </svg>
                     </Listbox.Button>
                     <Transition
                         as={Fragment}
@@ -314,10 +317,13 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [isCentreDropdownOpen, setIsCentreDropdownOpen] = useState(false);
     const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+    const [isDesktopFiltersOpen, setIsDesktopFiltersOpen] = useState(false);
     const statusDropdownRef = useRef(null);
     const centreDropdownRef = useRef(null);
     const mobileFiltersRef = useRef(null);
     const mobileFiltersBtnRef = useRef(null);
+    const desktopFiltersRef = useRef(null);
+    const desktopFiltersBtnRef = useRef(null);
 
     // Document Management State
     const [documents, setDocuments] = useState([]);
@@ -609,6 +615,23 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             document.removeEventListener('touchstart', handleClickOutside);
         };
     }, [isMobileFiltersOpen]);
+
+    // Cerrar panel de filtros desktop al hacer click fuera
+    useEffect(() => {
+        if (!isDesktopFiltersOpen) return;
+        const handleClickOutside = (e) => {
+            if (
+                desktopFiltersRef.current && !desktopFiltersRef.current.contains(e.target) &&
+                desktopFiltersBtnRef.current && !desktopFiltersBtnRef.current.contains(e.target)
+            ) {
+                setIsDesktopFiltersOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isDesktopFiltersOpen]);
 
     // Bloquear scroll al abrir modal
     useEffect(() => {
@@ -1074,7 +1097,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                         </span>
                     </div>
 
-                    {/* Segunda línea: Búsqueda y filtros */}
+                    {/* Segunda línea: Búsqueda y botones */}
                     <div className="flex flex-wrap items-end gap-4">
                         <div className="relative flex-1 min-w-[260px] max-w-xl">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -1114,7 +1137,31 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                             ) : null;
                         })()}
 
-                        <div className="flex items-center ml-auto gap-6">
+                        <div className="flex items-center ml-auto gap-3">
+                            {/* Botón toggle filtros avanzados */}
+                            <button
+                                ref={desktopFiltersBtnRef}
+                                onClick={() => setIsDesktopFiltersOpen((prev) => !prev)}
+                                className={`relative flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border ${isDesktopFiltersOpen
+                                    ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
+                                    : 'text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/60 border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                    }`}
+                                title="Filtros avanzados"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+                                </svg>
+                                <span className="text-xs font-semibold">Filtros</span>
+                                {(() => {
+                                    const n = [brandFilter, vehicleTypeFilter, energyTypeFilter, fuelLevelFilter, seatsMinFilter, seatsMaxFilter, trunkMinFilter, trunkMaxFilter].filter(Boolean).length;
+                                    return n > 0 ? (
+                                        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-primary text-white text-[10px] font-bold border-2 border-white dark:border-slate-800">
+                                            {n}
+                                        </span>
+                                    ) : null;
+                                })()}
+                            </button>
+
                             <button
                                 onClick={() => {
                                     setOptionsFilter('all');
@@ -1147,8 +1194,8 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                 </div>
             )}
 
-            {(!isMobile || isMobileFiltersOpen) && (
-            <div ref={mobileFiltersRef} className={`mb-2 flex flex-wrap items-center gap-1.5${isMobile ? ' pt-3 border-t border-slate-100 dark:border-slate-700/50' : ''}`}>
+            {((!isMobile && isDesktopFiltersOpen) || (isMobile && isMobileFiltersOpen)) && (
+            <div ref={!isMobile ? desktopFiltersRef : mobileFiltersRef} className={`mb-2 flex flex-wrap items-center gap-1.5${isMobile ? ' pt-3 border-t border-slate-100 dark:border-slate-700/50' : ' pt-4 border-t border-slate-100 dark:border-slate-700/50'}`}>
                     <VehicleFilterSelect
                         value={brandFilter}
                         onChange={setBrandFilter}

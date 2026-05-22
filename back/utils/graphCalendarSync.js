@@ -24,7 +24,7 @@ function buildEventBody(reservationId, brand, model, licensePlate, status) {
         subject: `Reserva - ${brand} ${model} (${licensePlate})`,
         body: {
             contentType: 'HTML',
-            content: `<p>Reserva #${reservationId} gestionada desde el sistema de reservas.</p>
+            content: `<p>Reserva gestionada desde el sistema de reservas.</p>
                       <p><strong>Vehículo:</strong> ${brand} ${model} — ${licensePlate}</p>
                       <p><strong>Estado:</strong> ${statusLabel}</p>
                       <p><em>Este evento es informativo. Para modificar o cancelar la reserva, accede al sistema web.</em></p>`,

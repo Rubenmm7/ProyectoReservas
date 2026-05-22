@@ -2310,10 +2310,6 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
             </button>
           ))}
         </nav>
-
-        <div className="select-none w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-200">
-          <span className="font-medium">{userCentreText}</span>
-        </div>
       </aside>}
 
       {/* CONTENIDO PRINCIPAL */}
