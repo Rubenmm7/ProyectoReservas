@@ -596,7 +596,7 @@ const HomeView = ({
   };
 
   return (
-    <div className="animate-fade-in flex flex-col gap-6 min-h-full">
+    <div className="animate-fade-in flex flex-col gap-6 flex-1 min-h-0">
 
       {/* Formulario de entrega para admin/supervisor al inicio */}
       {(user.role === 'admin' || user.role === 'supervisor') && activeReservation && (
@@ -710,7 +710,7 @@ const HomeView = ({
         />
       )}
 
-      <div className="glass-card-solid rounded-2xl shadow-sm p-6 flex flex-col transition-all hover:shadow-md shrink-0 min-h-[280px]">
+      <div className={`glass-card-solid rounded-2xl shadow-sm p-6 flex flex-col transition-all hover:shadow-md ${activeReservation ? 'flex-1 min-h-0' : 'shrink-0 min-h-[280px]'}`}>
         <div className="select-none flex flex-col gap-4 mb-6 shrink-0">
           {/* Primera línea: Título a la izquierda + Contador a la derecha */}
           <div className="flex items-center justify-between">
@@ -752,7 +752,7 @@ const HomeView = ({
             No hay reservas registradas
           </div>
         ) : (
-          <div className="flex-none h-[32rem] flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
+          <div className={`${activeReservation ? 'flex-1 min-h-0' : 'flex-none h-[32rem]'} flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden`}>
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
               <table className="w-full text-sm text-left relative">
                 <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
@@ -2090,10 +2090,11 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
                     />
                   </div>
                 )}
-                <div className="w-full flex-1 min-h-[32rem] flex flex-col">
+                <div className={`w-full flex-1 flex flex-col ${activeReservation ? 'min-h-0' : 'min-h-[32rem]'}`}>
                   <ReservationsView
                     key={`employee-inicio-${reservationsViewKey}`}
                     user={currentUser}
+                    allowPageFlow={Boolean(activeReservation)}
                     shouldOpenAddModal={triggerAddReservation}
                     onAddModalOpened={() => setTriggerAddReservation(false)}
                     reservationToEdit={triggerEditReservation}

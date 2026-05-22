@@ -32,7 +32,7 @@ const formatVehicleLabel = (reservation = {}) => {
   const brand = String(reservation.brand ?? '').trim();
   const model = String(reservation.model ?? '').trim();
   const plate = String(reservation.license_plate ?? '').trim();
-  const name = [brand, model].filter(Boolean).join(' / ') || model || brand || '-';
+  const name = [brand, model].filter(Boolean).join(' ') || model || brand || '-';
   return plate ? `${name} (${plate})` : name;
 };
 
@@ -345,7 +345,7 @@ const buildReservationHtml = ({ reservation, eventType }) => {
             <!-- PIE: 12px * 1.5 = 18px -->
             <tr>
               <td style="padding:20px 28px 28px 28px;color:#64748b;font-size:12px;line-height:18px;font-family:Arial,sans-serif;">
-                Este correo se ha generado automáticamente desde el sistema de reservas de ${brandName}. Si no esperabas este mensaje, contacta con el equipo de administración.
+                Este correo se ha generado automáticamente desde el sistema de reservas de ${brandName}. Si no esperabas este mensaje, contacta con el equipo de sistemas.
               </td>
             </tr>
 

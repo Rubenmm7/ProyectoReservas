@@ -535,7 +535,7 @@ export default function ReservationsView({
         : sortedReservations;
     // Solo ajustamos la altura de filas cuando la tabla está realmente visible.
     // Así evitamos que se quede con una medida vieja al volver desde el calendario.
-    const shouldStretchRows = !isMobile && viewMode === 'table' && paginatedReservations.length === itemsPerPage;
+    const shouldStretchRows = !isMobile && !allowPageFlow && viewMode === 'table' && paginatedReservations.length === itemsPerPage;
     const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
         rowCount: paginatedReservations.length,
         enabled: shouldStretchRows,
@@ -2440,7 +2440,7 @@ export default function ReservationsView({
     }
 
     return (
-        <div className={`relative flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors ${viewMode === 'calendar' ? `flex-shrink-0 min-h-[780px]${isMobile ? ' mb-16' : ''}` : 'flex-1 min-h-0 overflow-hidden'}`}>
+        <div className={`relative flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors ${viewMode === 'calendar' ? `flex-shrink-0 min-h-[780px]${isMobile ? ' mb-16' : ''}` : allowPageFlow ? 'flex-none min-h-0 overflow-visible' : 'flex-1 min-h-0 overflow-hidden'}`}>
             {isMobile ? (
                 // --- CABECERA MÓVIL ---
                 <div className="select-none flex flex-col gap-4 mb-6">
@@ -3212,9 +3212,9 @@ export default function ReservationsView({
                     )}
                 </div>
             ) : (
-                <div className={`${allowPageFlow ? 'h-auto overflow-hidden' : 'flex-1 min-h-0 overflow-hidden'} flex flex-col`}>
-                    <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
-                        <div ref={tableWrapperRef} className={allowPageFlow ? 'overflow-hidden' : 'flex-1 min-h-0 overflow-hidden'}>
+                <div className={`${allowPageFlow ? 'h-auto overflow-visible' : 'flex-1 min-h-0 overflow-hidden'} flex flex-col`}>
+                    <div className={`flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 min-h-0 ${allowPageFlow ? 'overflow-visible' : 'overflow-hidden'}`}>
+                        <div ref={tableWrapperRef} className={allowPageFlow ? 'overflow-visible' : 'flex-1 min-h-0 overflow-hidden'}>
                             <table className="w-full text-sm text-left relative">
                                 <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                                     <tr className=" select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
@@ -4200,11 +4200,11 @@ export default function ReservationsView({
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
                                     <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 p-4">
-                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Inicio</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Fecha inicio</p>
                                         <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-white">{formatDate(reservationDetails.start_time)}</p>
                                     </div>
                                     <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 p-4">
-                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Fin</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Fecha fin</p>
                                         <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-white">{formatDate(reservationDetails.end_time)}</p>
                                     </div>
                                 </div>
@@ -4232,13 +4232,14 @@ export default function ReservationsView({
                                         const vehicle = reservationDetailsVehicle || reservationDetails;
                                         const fullName = [vehicle?.brand, vehicle?.model].filter(Boolean).join(' ') || vehicle?.model || vehicle?.brand || 'Vehículo';
                                         const vehicleRows = [
-                                            { label: 'Vehículo', value: `${fullName}${vehicle?.license_plate ? ` (${vehicle.license_plate})` : ''}` },
+                                            { label: 'Vehículo', value: `${fullName}` },
+                                            { label: 'Matrícula', value: formatDetailValue(vehicle?.license_plate) },
                                             { label: 'Tipo', value: formatReadableValue(vehicle?.vehicle_type) },
                                             { label: 'Plazas', value: formatDetailValue(vehicle?.seats) },
-                                            { label: 'Maletero', value: formatDetailValue(vehicle?.trunk_capacity_l) },
+                                            { label: 'Maletero', value: `${formatDetailValue(vehicle?.trunk_capacity_l)} L` },
                                             { label: 'Energía', value: formatEnergyTypeLabel(vehicle?.energy_type) },
                                             { label: 'Nivel de combustible', value: formatReadableValue(vehicle?.fuel_level) },
-                                            { label: 'Kilómetros', value: formatDetailValue(vehicle?.kilometers) },
+                                            { label: 'Kilómetros', value: `${formatDetailValue(vehicle?.kilometers)} Km` },
                                         ];
 
                                         return (
