@@ -53,7 +53,7 @@ const Perfil = () => {
               </div>
             </div>
 
-            {currentUser.role === 'empleado' && (
+            {(currentUser.role === 'empleado' || currentUser.role === 'gestor') && (
               <div className="rounded-2xl border border-slate-300 dark:border-slate-600 bg-white/90 dark:bg-slate-800 p-4 sm:p-5 shadow-sm">
                 <p className="text-sm sm:text-[0.95rem] text-slate-600 dark:text-slate-300 leading-relaxed">
                   Si necesitas cambiar datos del perfil, contacta con un administrador.
